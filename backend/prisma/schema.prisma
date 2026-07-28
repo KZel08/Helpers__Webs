@@ -1,0 +1,364 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  ADMIN
+  CUSTOMER
+  HELPER
+}
+
+enum BookingStatus {
+  PENDING
+  ACCEPTED
+  ONGOING
+  COMPLETED
+  CANCELLED
+  REFUNDED
+}
+
+enum PaymentStatus {
+  PENDING
+  ACCEPTED
+  FAILED
+  REFUNDED
+}
+
+enum PaymentMethod {
+  CASH
+  UPI
+  CARD
+  NET_BANKING
+  WALLET
+}
+
+enum VerificationStatus {
+  PENDING
+  VERIFIED
+  REJECTED
+}
+
+enum DocumentType {
+  AADHAR
+  PAN
+  PASSPORT
+  DRIVING_LICENSE
+  VOTER_ID
+  PROFILE_PHOTO
+  SELFIE
+  POLICE_VERIFICATION
+  CERTIFICATE
+  OTHER
+}
+
+enum NotificationType {
+  BOOKING
+  PAYMENT
+  SYSTEM
+  PROMOTION
+}
+
+enum PriceType {
+  FIXED
+  HOURLY
+}
+
+enum TicketStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+}
+
+enum TicketPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+model User {
+  id              String   @id @default(uuid())
+  email           String   @unique
+  phone           String?  @unique
+  password        String
+  firstName       String
+  lastName        String
+  avatarUrl       String?
+  role            Role     @default(CUSTOMER)
+  isVerified      Boolean  @default(false)
+  isActive        Boolean  @default(true)
+  lastLoginAt     DateTime?
+  lastLoginIp     String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  deletedAt       DateTime?
+
+  helperProfile   HelperProfile?
+  addresses       Address[]
+  notifications   Notification[]
+  media           Media[]
+  customerBookings Booking[] @relation("CustomerBookings")
+  reviews         Review[]
+  supportTickets  SupportTicket[]
+  refreshTokens   RefreshToken[]
+  loginHistory    LoginHistory[]
+  otps            Otp[]
+
+  @@index([email])
+  @@index([role])
+}
+
+model HelperProfile {
+  id                 String              @id @default(uuid())
+  userId             String              @unique
+  user               User                @relation(fields: [userId], references: [id])
+  bio                String?
+  experienceYears    Int?
+  hourlyRate         Int?
+  rating             Decimal             @default(0) @db.Decimal(3, 2)
+  totalReviews       Int                 @default(0)
+  verificationStatus VerificationStatus  @default(PENDING)
+  isAvailable        Boolean             @default(true)
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+
+  services           Service[]
+  availability       Availability[]
+  receivedBookings   Booking[]           @relation("HelperBookings")
+  reviews            Review[]
+  documents          HelperDocument[]
+}
+
+model Category {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  description String?
+  icon        String?
+  services    Service[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Service {
+  id          String   @id @default(uuid())
+  helperId    String
+  categoryId  String
+  helper      HelperProfile @relation(fields: [helperId], references: [id])
+  category    Category      @relation(fields: [categoryId], references: [id])
+  title       String
+  description String?
+  price       Int
+  priceType   PriceType
+  duration    Int?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  bookings    Booking[]
+  media       Media[]
+
+  @@index([categoryId])
+  @@index([helperId])
+}
+
+model Media {
+  id        String   @id @default(uuid())
+  serviceId String?
+  userId    String?
+  url       String
+  type      String
+  createdAt DateTime @default(now())
+
+  service   Service? @relation(fields: [serviceId], references: [id])
+  user      User?    @relation(fields: [userId], references: [id])
+}
+
+model Address {
+  id         String   @id @default(uuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id])
+  label      String?
+  houseNo    String
+  street     String
+  city       String
+  state      String
+  country    String
+  postalCode String
+  latitude   Float?
+  longitude  Float?
+  isDefault  Boolean  @default(false)
+  bookings   Booking[]
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model Booking {
+  id          String        @id @default(uuid())
+  customerId  String
+  helperId    String
+  serviceId   String
+  addressId   String
+  customer    User          @relation("CustomerBookings", fields: [customerId], references: [id])
+  helper      HelperProfile @relation("HelperBookings", fields: [helperId], references: [id])
+  service     Service       @relation(fields: [serviceId], references: [id])
+  address     Address       @relation(fields: [addressId], references: [id])
+  bookingDate DateTime
+  scheduledAt DateTime?
+  status      BookingStatus @default(PENDING)
+  notes       String?
+  totalAmount Int
+  payment     Payment?
+  review      Review?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  deletedAt   DateTime?
+
+  @@index([customerId])
+  @@index([helperId])
+  @@index([status])
+  @@index([bookingDate])
+}
+
+model Payment {
+  id            String        @id @default(uuid())
+  bookingId     String        @unique
+  booking       Booking       @relation(fields: [bookingId], references: [id])
+  amount        Int
+  method        PaymentMethod
+  status        PaymentStatus @default(PENDING)
+  provider      String?
+  transactionId String?
+  paidAt        DateTime?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+}
+
+model Review {
+  id         String   @id @default(uuid())
+  bookingId  String   @unique
+  customerId String
+  helperId   String
+  booking    Booking  @relation(fields: [bookingId], references: [id])
+  customer   User     @relation(fields: [customerId], references: [id])
+  helper     HelperProfile @relation(fields: [helperId], references: [id])
+  rating     Decimal  @default(0) @db.Decimal(3, 2)
+  comment    String?
+  createdAt  DateTime @default(now())
+
+  @@index([helperId])
+}
+
+model Availability {
+  id          String   @id @default(uuid())
+  helperId    String
+  helper      HelperProfile @relation(fields: [helperId], references: [id])
+  weekday     Int
+  startTime   DateTime @db.Time(0)
+  endTime     DateTime @db.Time(0)
+  isAvailable Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([helperId])
+}
+
+model Notification {
+  id        String           @id @default(uuid())
+  userId    String
+  user      User             @relation(fields: [userId], references: [id])
+  title     String
+  message   String
+  type      NotificationType
+  isRead    Boolean          @default(false)
+  createdAt DateTime         @default(now())
+
+  @@index([userId])
+}
+
+model HelperDocument {
+  id                 String             @id @default(uuid())
+  helperId           String
+  helper             HelperProfile      @relation(fields: [helperId], references: [id], onDelete: Cascade)
+  type               DocumentType
+  fileName           String
+  url                String
+  mimeType           String
+  fileSize           Int
+  verificationStatus VerificationStatus @default(PENDING)
+  verifiedBy         String?
+  verifiedAt         DateTime?
+  rejectionReason    String?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  @@index([helperId])
+  @@index([verificationStatus])
+}
+
+model RefreshToken {
+  id          String    @id @default(uuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  hashedToken String
+  deviceName  String?
+  deviceType  String?
+  ipAddress   String?
+  userAgent   String?
+  expiresAt   DateTime
+  lastUsedAt  DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model LoginHistory {
+  id         String   @id @default(uuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  ipAddress  String?
+  deviceName String?
+  userAgent  String?
+  success    Boolean
+  createdAt  DateTime @default(now())
+
+  @@index([userId])
+}
+
+model Otp {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  code      String
+  purpose   String
+  expiresAt DateTime
+  used      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+model SupportTicket {
+  id        String         @id @default(uuid())
+  userId    String
+  user      User           @relation(fields: [userId], references: [id])
+  title     String
+  message   String
+  status    TicketStatus   @default(OPEN)
+  priority  TicketPriority @default(MEDIUM)
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+
+  @@index([userId])
+  @@index([status])
+}
+
