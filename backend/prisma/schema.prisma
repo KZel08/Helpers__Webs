@@ -2,12 +2,12 @@
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
 generator client {
-  provider = "prisma-client"
-  output   = "../generated/prisma"
+  provider = "prisma-client-js"
 }
 
 datasource db {
   provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 enum Role {
@@ -27,7 +27,7 @@ enum BookingStatus {
 
 enum PaymentStatus {
   PENDING
-  ACCEPTED
+  SUCCESS
   FAILED
   REFUNDED
 }
@@ -120,11 +120,11 @@ model User {
 model HelperProfile {
   id                 String              @id @default(uuid())
   userId             String              @unique
-  user               User                @relation(fields: [userId], references: [id])
+  user               User                @relation(fields: [userId], references: [id], onDelete: Cascade)
   bio                String?
   experienceYears    Int?
   hourlyRate         Int?
-  rating             Decimal             @default(0) @db.Decimal(3, 2)
+  rating             Decimal             @default("0.00") @db.Decimal(3, 2)
   totalReviews       Int                 @default(0)
   verificationStatus VerificationStatus  @default(PENDING)
   isAvailable        Boolean             @default(true)
@@ -152,8 +152,8 @@ model Service {
   id          String   @id @default(uuid())
   helperId    String
   categoryId  String
-  helper      HelperProfile @relation(fields: [helperId], references: [id])
-  category    Category      @relation(fields: [categoryId], references: [id])
+  helper      HelperProfile @relation(fields: [helperId], references: [id], onDelete: Cascade)
+  category    Category      @relation(fields: [categoryId], references: [id], onDelete: Cascade)
   title       String
   description String?
   price       Int
@@ -178,14 +178,14 @@ model Media {
   type      String
   createdAt DateTime @default(now())
 
-  service   Service? @relation(fields: [serviceId], references: [id])
-  user      User?    @relation(fields: [userId], references: [id])
+  service   Service? @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  user      User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model Address {
   id         String   @id @default(uuid())
   userId     String
-  user       User     @relation(fields: [userId], references: [id])
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   label      String?
   houseNo    String
   street     String
@@ -207,10 +207,10 @@ model Booking {
   helperId    String
   serviceId   String
   addressId   String
-  customer    User          @relation("CustomerBookings", fields: [customerId], references: [id])
-  helper      HelperProfile @relation("HelperBookings", fields: [helperId], references: [id])
-  service     Service       @relation(fields: [serviceId], references: [id])
-  address     Address       @relation(fields: [addressId], references: [id])
+  customer    User          @relation("CustomerBookings", fields: [customerId], references: [id], onDelete: Cascade)
+  helper      HelperProfile @relation("HelperBookings", fields: [helperId], references: [id], onDelete: Cascade)
+  service     Service       @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  address     Address       @relation(fields: [addressId], references: [id], onDelete: Cascade)
   bookingDate DateTime
   scheduledAt DateTime?
   status      BookingStatus @default(PENDING)
@@ -231,7 +231,7 @@ model Booking {
 model Payment {
   id            String        @id @default(uuid())
   bookingId     String        @unique
-  booking       Booking       @relation(fields: [bookingId], references: [id])
+  booking       Booking       @relation(fields: [bookingId], references: [id], onDelete: Cascade)
   amount        Int
   method        PaymentMethod
   status        PaymentStatus @default(PENDING)
@@ -247,10 +247,10 @@ model Review {
   bookingId  String   @unique
   customerId String
   helperId   String
-  booking    Booking  @relation(fields: [bookingId], references: [id])
-  customer   User     @relation(fields: [customerId], references: [id])
-  helper     HelperProfile @relation(fields: [helperId], references: [id])
-  rating     Decimal  @default(0) @db.Decimal(3, 2)
+  booking    Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  customer   User     @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  helper     HelperProfile @relation(fields: [helperId], references: [id], onDelete: Cascade)
+  rating     Decimal  @default("0.00") @db.Decimal(3, 2)
   comment    String?
   createdAt  DateTime @default(now())
 
@@ -260,10 +260,10 @@ model Review {
 model Availability {
   id          String   @id @default(uuid())
   helperId    String
-  helper      HelperProfile @relation(fields: [helperId], references: [id])
+  helper      HelperProfile @relation(fields: [helperId], references: [id], onDelete: Cascade)
   weekday     Int
-  startTime   DateTime @db.Time(0)
-  endTime     DateTime @db.Time(0)
+  startTime   DateTime
+  endTime     DateTime
   isAvailable Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -274,7 +274,7 @@ model Availability {
 model Notification {
   id        String           @id @default(uuid())
   userId    String
-  user      User             @relation(fields: [userId], references: [id])
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   title     String
   message   String
   type      NotificationType
@@ -350,7 +350,7 @@ model Otp {
 model SupportTicket {
   id        String         @id @default(uuid())
   userId    String
-  user      User           @relation(fields: [userId], references: [id])
+  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   title     String
   message   String
   status    TicketStatus   @default(OPEN)
