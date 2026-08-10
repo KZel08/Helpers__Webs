@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { BookingStatus } from '@prisma/client';
 import { CreateBookingDto } from './dto/create-booking.dto';
@@ -56,7 +57,7 @@ export class BookingsRepository {
     });
   }
 
-  async update(id: string, data: Record<string, unknown>) {
+  async update(id: string, data: Prisma.BookingUpdateInput) {
     return this.prisma.booking.update({ where: { id }, data });
   }
 

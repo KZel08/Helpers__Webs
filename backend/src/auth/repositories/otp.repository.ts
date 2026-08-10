@@ -7,18 +7,54 @@ export class OTPRepository {
   constructor(private readonly prisma: PrismaService) {}
 
   async create(data: Prisma.OtpUncheckedCreateInput) {
-    return this.prisma.otp.create({ data });
+    return this.prisma.otp.create({
+      data,
+    });
   }
 
-  async findOtp(userId: string, purpose: string) {
-    return this.prisma.otp.findFirst({ where: { userId, purpose, used: false } });
+  async findActive(userId: string, purpose: string) {
+    return this.prisma.otp.findFirst({
+      where: {
+        userId,
+        purpose,
+        used: false,
+        expiresAt: {
+          gt: new Date(),
+        },
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
   }
 
   async markUsed(id: string) {
-    return this.prisma.otp.update({ where: { id }, data: { used: true } });
+    return this.prisma.otp.update({
+      where: { id },
+      data: { used: true },
+    });
+  }
+
+  async invalidateUserOtps(userId: string, purpose: string) {
+    return this.prisma.otp.updateMany({
+      where: {
+        userId,
+        purpose,
+        used: false,
+      },
+      data: {
+        used: true,
+      },
+    });
   }
 
   async deleteExpired() {
-    return this.prisma.otp.deleteMany({ where: { expiresAt: { lt: new Date() } } });
+    return this.prisma.otp.deleteMany({
+      where: {
+        expiresAt: {
+          lt: new Date(),
+        },
+      },
+    });
   }
 }

@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { BookingsRepository } from './bookings.repository';
 import { CreateBookingDto } from './dto/create-booking.dto';
 import { UpdateBookingDto } from './dto/update-booking.dto';
@@ -24,19 +28,35 @@ export class BookingsService {
 
   async update(userId: string, bookingId: string, dto: UpdateBookingDto) {
     const booking = await this.findById(bookingId);
-    const isParticipant =
-      booking.customerId === userId || booking.helperId === userId;
 
-    if (!isParticipant) {
+    const isCustomer = booking.customerId === userId;
+    const isHelper = booking.helperId === userId;
+
+    if (!isCustomer && !isHelper) {
       throw new ForbiddenException('You are not part of this booking');
     }
 
-    // Business rule: only helpers can accept/complete, only customers can cancel
-    if (dto.status === BookingStatus.CANCELLED && booking.customerId !== userId) {
-      throw new ForbiddenException('Only the customer can cancel a booking');
+    if (dto.status !== undefined) {
+      if (dto.status === BookingStatus.CANCELLED && !isCustomer) {
+        throw new ForbiddenException('Only the customer can cancel a booking');
+      }
+
+      if (
+        (dto.status === BookingStatus.ACCEPTED ||
+          dto.status === BookingStatus.ONGOING ||
+          dto.status === BookingStatus.COMPLETED) &&
+        !isHelper
+      ) {
+        throw new ForbiddenException(
+          'Only the helper can update the booking to this status',
+        );
+      }
     }
 
-    return this.bookingsRepo.update(bookingId, dto);
+    return this.bookingsRepo.update(bookingId, {
+      ...(dto.status !== undefined && { status: dto.status }),
+      ...(dto.notes !== undefined && { notes: dto.notes }),
+    });
   }
 
   async cancel(userId: string, bookingId: string) {
