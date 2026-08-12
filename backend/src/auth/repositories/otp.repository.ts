@@ -28,6 +28,22 @@ export class OTPRepository {
     });
   }
 
+  async findActiveByPurpose(purpose: string) {
+    return this.prisma.otp.findMany({
+      where: {
+        purpose,
+        used: false,
+        expiresAt: {
+          gt: new Date(),
+        },
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+      take: 20,
+    });
+  }
+
   async markUsed(id: string) {
     return this.prisma.otp.update({
       where: { id },

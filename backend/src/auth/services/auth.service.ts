@@ -12,6 +12,7 @@ import { RefreshDto } from '../dto/refresh.dto';
 import { ForgotPasswordDto } from '../dto/forgot-password.dto';
 import { ResetPasswordDto } from '../dto/reset-password.dto';
 import { GoogleAuthDto } from '../dto/google-auth.dto';
+import { VerifyEmailDto } from '../dto/verify-email.dto';
 import { UserResponseDto } from '../dto/user-response.dto';
 import { UserMapper } from '../mappers/user.mapper';
 import { UserRepository } from '../repositories/user.repository';
@@ -42,20 +43,35 @@ export class AuthService {
 
   async register(
     dto: RegisterDto,
-  ): Promise<{ user: UserResponseDto; accessToken: string; refreshToken: string }> {
-    const existingEmail = await this.userRepo.findByEmail(dto.email);
+  ): Promise<{
+    user: UserResponseDto;
+    message: string;
+  }> {
+    const existingEmail = await this.userRepo.findByEmail(
+      dto.email,
+    );
+
     if (existingEmail) {
-      throw new ConflictException('An account with this email already exists');
+      throw new ConflictException(
+        'An account with this email already exists',
+      );
     }
 
     if (dto.phone) {
-      const existingPhone = await this.userRepo.findByPhone(dto.phone);
+      const existingPhone =
+        await this.userRepo.findByPhone(dto.phone);
+
       if (existingPhone) {
-        throw new ConflictException('An account with this phone number already exists');
+        throw new ConflictException(
+          'An account with this phone number already exists',
+        );
       }
     }
 
-    const hashedPassword = await this.passwordService.hashPassword(dto.password);
+    const hashedPassword =
+      await this.passwordService.hashPassword(
+        dto.password,
+      );
 
     const user = await this.userRepo.create({
       email: dto.email,
@@ -66,10 +82,24 @@ export class AuthService {
       role: dto.role ?? Role.CUSTOMER,
     });
 
-    // Generate email verification OTP (log for now — SMTP wired when env is set)
+    /*
+     * Generate email verification OTP.
+     *
+     * The raw OTP is never stored in the database.
+     */
     const otp = this.otpService.generateOtp();
-    const hashedOtp = await this.passwordService.hashOtp(otp);
-    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+
+    const hashedOtp =
+      await this.passwordService.hashOtp(otp);
+
+    const expiresAt = new Date(
+      Date.now() + 10 * 60 * 1000,
+    );
+
+    await this.otpRepo.invalidateUserOtps(
+      user.id,
+      'email-verification',
+    );
 
     await this.otpRepo.create({
       userId: user.id,
@@ -78,12 +108,95 @@ export class AuthService {
       expiresAt,
     });
 
-    this.logger.log(`[DEV] Email verification OTP for ${user.email}: ${otp}`);
+    /*
+     * Temporary development behavior.
+     *
+     * Replace with EmailService when SMTP integration
+     * is implemented.
+     */
+    this.logger.log(
+      `[DEV] Email verification OTP for ${user.email}: ${otp}`,
+    );
 
-    const payload: JwtPayload = { sub: user.id, email: user.email, role: user.role };
-    const tokens = await this.sessionService.createSession(user.id, payload);
+    return {
+      user: UserMapper.toResponse(user),
+      message:
+        'Registration successful. Please verify your email.',
+    };
+  }
 
-    return { user: UserMapper.toResponse(user), ...tokens };
+  // ─── Verify Email ───────────────────────────────────────────────────────────
+
+  async verifyEmail(
+    dto: VerifyEmailDto,
+  ): Promise<{
+    user: UserResponseDto;
+    accessToken: string;
+    refreshToken: string;
+  }> {
+    const user = await this.userRepo.findByEmail(
+      dto.email,
+    );
+
+    if (!user) {
+      throw new UnauthorizedException(
+        'Invalid verification request',
+      );
+    }
+
+    if (user.isVerified) {
+      throw new ConflictException(
+        'Email is already verified',
+      );
+    }
+
+    const otp = await this.otpRepo.findActive(
+      user.id,
+      'email-verification',
+    );
+
+    if (!otp) {
+      throw new UnauthorizedException(
+        'Invalid or expired verification code',
+      );
+    }
+
+    const valid = await this.passwordService.compareOtp(
+      dto.otp,
+      otp.code,
+    );
+
+    if (!valid) {
+      throw new UnauthorizedException(
+        'Invalid or expired verification code',
+      );
+    }
+
+    await this.otpRepo.markUsed(otp.id);
+
+    const verifiedUser = await this.userRepo.update(
+      user.id,
+      {
+        isVerified: true,
+      },
+    );
+
+    const payload: JwtPayload = {
+      sub: verifiedUser.id,
+      email: verifiedUser.email,
+      role: verifiedUser.role,
+    };
+
+    const tokens =
+      await this.sessionService.createSession(
+        verifiedUser.id,
+        payload,
+      );
+
+    return {
+      user: UserMapper.toResponse(verifiedUser),
+      ...tokens,
+    };
   }
 
   // ─── Login ─────────────────────────────────────────────────────────────────
@@ -205,13 +318,49 @@ export class AuthService {
   // ─── Reset Password ─────────────────────────────────────────────────────────
 
   async resetPassword(dto: ResetPasswordDto): Promise<{ message: string }> {
-    // In a real implementation the token would encode the userId
-    // For now we find by searching recent OTPs (simplified flow)
-    this.logger.log(`[DEV] Reset password called with token: ${dto.token}`);
-    // TODO: Implement full OTP-based password reset lookup
-    const hashedPassword = await this.passwordService.hashPassword(dto.password);
-    this.logger.log(`[DEV] New password hash generated, length: ${hashedPassword.length}`);
-    return { message: 'Password has been reset successfully' };
+    const activeOtps = await this.otpRepo.findActiveByPurpose(
+      'password-reset',
+    );
+
+    let matchedOtp: (typeof activeOtps)[number] | undefined;
+
+    for (const otp of activeOtps) {
+      const isValid = await this.passwordService.compareOtp(
+        dto.token,
+        otp.code,
+      );
+
+      if (isValid) {
+        matchedOtp = otp;
+        break;
+      }
+    }
+
+    if (!matchedOtp) {
+      throw new UnauthorizedException('Invalid or expired reset token');
+    }
+
+    const hashedPassword = await this.passwordService.hashPassword(
+      dto.password,
+    );
+
+    await this.userRepo.update(matchedOtp.userId, {
+      password: hashedPassword,
+    });
+
+    await this.otpRepo.markUsed(matchedOtp.id);
+
+    await this.otpRepo.invalidateUserOtps(
+      matchedOtp.userId,
+      'password-reset',
+    );
+
+    // Password reset invalidates all existing sessions.
+    await this.sessionService.revokeAllSessions(matchedOtp.userId);
+
+    return {
+      message: 'Password has been reset successfully',
+    };
   }
 
   // ─── Google OAuth ────────────────────────────────────────────────────────────
