@@ -1,9 +1,9 @@
 import { Injectable } from '@nestjs/common';
+import { randomBytes } from 'crypto';
+
 import { RefreshTokenRepository } from '../repositories/refresh-token.repository';
 import { PasswordService } from './password.service';
 import { TokenService, JwtPayload } from './token.service';
-import * as crypto from 'crypto';
-
 
 @Injectable()
 export class SessionService {
@@ -15,38 +15,97 @@ export class SessionService {
 
   async createSession(
     userId: string,
-    payload: JwtPayload,
-    meta?: { ipAddress?: string; userAgent?: string; deviceName?: string },
-  ): Promise<{ accessToken: string; refreshToken: string }> {
-    const accessToken = await this.tokenService.generateAccessToken(payload);
-    const rawRefreshToken = crypto.randomUUID();
-    const hashedToken = await this.passwordService.hashRefreshToken(rawRefreshToken);
+    payload: Omit<JwtPayload, 'jti'>,
+    meta?: {
+      ipAddress?: string;
+      userAgent?: string;
+      deviceName?: string;
+      deviceType?: string;
+    },
+  ): Promise<{
+    accessToken: string;
+    refreshToken: string;
+  }> {
+    const accessToken =
+      await this.tokenService.generateAccessToken(payload);
 
-    await this.refreshTokenRepo.create({
+    /*
+     * Generate the raw refresh secret.
+     *
+     * This is returned to the client but NEVER stored
+     * directly in PostgreSQL.
+     */
+    const rawRefreshSecret = randomBytes(64).toString('hex');
+
+    const hashedToken =
+      await this.passwordService.hashRefreshToken(
+        rawRefreshSecret,
+      );
+
+    /*
+     * Create the database session first.
+     *
+     * The database-generated ID becomes the JWT jti.
+     */
+    const session = await this.refreshTokenRepo.create({
       userId,
       hashedToken,
       expiresAt: this.tokenService.getRefreshExpiresAt(),
       ipAddress: meta?.ipAddress,
       userAgent: meta?.userAgent,
       deviceName: meta?.deviceName,
+      deviceType: meta?.deviceType,
     });
 
-    const refreshToken = await this.tokenService.generateRefreshToken({ ...payload, jti: rawRefreshToken });
+    /*
+     * jti identifies this specific device/session.
+     */
+    const refreshToken =
+      await this.tokenService.generateRefreshToken({
+        ...payload,
+        jti: session.id,
+      });
 
-    return { accessToken, refreshToken };
+    return {
+      accessToken,
+      refreshToken,
+    };
+  }
+
+  async revokeSession(sessionId: string): Promise<void> {
+    await this.refreshTokenRepo.deleteById(sessionId);
   }
 
   async revokeAllSessions(userId: string): Promise<void> {
     await this.refreshTokenRepo.deleteAll(userId);
   }
 
-  async rotateSession(
+  async validateRefreshSession(
+    sessionId: string,
     userId: string,
-    payload: JwtPayload,
-    oldTokenId?: string,
-  ): Promise<{ accessToken: string; refreshToken: string }> {
-    // Revoke old session tokens
-    await this.refreshTokenRepo.deleteAll(userId);
-    return this.createSession(userId, payload);
+    rawRefreshToken: string,
+  ) {
+    const session =
+      await this.refreshTokenRepo.findActiveById(sessionId);
+
+    if (!session) {
+      return null;
+    }
+
+    if (session.userId !== userId) {
+      return null;
+    }
+
+    const valid =
+      await this.passwordService.compareRefreshToken(
+        rawRefreshToken,
+        session.hashedToken,
+      );
+
+    if (!valid) {
+      return null;
+    }
+
+    return session;
   }
 }

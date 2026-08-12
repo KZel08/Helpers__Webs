@@ -7,24 +7,47 @@ export class RefreshTokenRepository {
   constructor(private readonly prisma: PrismaService) {}
 
   async create(data: Prisma.RefreshTokenUncheckedCreateInput) {
-    return this.prisma.refreshToken.create({ data });
-  }
-
-  async deleteCurrent(userId: string) {
-    return this.prisma.refreshToken.deleteMany({ where: { userId } });
-  }
-
-  async deleteAll(userId: string) {
-    return this.prisma.refreshToken.deleteMany({ where: { userId } });
-  }
-
-  async findValidToken(hashedToken: string) {
-    return this.prisma.refreshToken.findFirst({
-      where: { hashedToken, expiresAt: { gt: new Date() } },
+    return this.prisma.refreshToken.create({
+      data,
     });
   }
 
-  async rotate(id: string, data: Prisma.RefreshTokenUpdateInput) {
-    return this.prisma.refreshToken.update({ where: { id }, data });
+  async findById(id: string) {
+    return this.prisma.refreshToken.findUnique({
+      where: { id },
+    });
+  }
+
+  async findActiveById(id: string) {
+    return this.prisma.refreshToken.findFirst({
+      where: {
+        id,
+        expiresAt: {
+          gt: new Date(),
+        },
+      },
+    });
+  }
+
+  async deleteById(id: string) {
+    return this.prisma.refreshToken.delete({
+      where: { id },
+    });
+  }
+
+  async deleteAll(userId: string) {
+    return this.prisma.refreshToken.deleteMany({
+      where: { userId },
+    });
+  }
+
+  async deleteExpired() {
+    return this.prisma.refreshToken.deleteMany({
+      where: {
+        expiresAt: {
+          lt: new Date(),
+        },
+      },
+    });
   }
 }

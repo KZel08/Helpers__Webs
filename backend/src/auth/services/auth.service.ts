@@ -17,6 +17,7 @@ import { UserMapper } from '../mappers/user.mapper';
 import { UserRepository } from '../repositories/user.repository';
 import { OTPRepository } from '../repositories/otp.repository';
 import { RefreshTokenRepository } from '../repositories/refresh-token.repository';
+import { LoginHistoryRepository } from '../repositories/login-history.repository';
 import { PasswordService } from './password.service';
 import { OtpService } from './otp.service';
 import { TokenService, JwtPayload } from './token.service';
@@ -34,6 +35,7 @@ export class AuthService {
     private readonly otpService: OtpService,
     private readonly tokenService: TokenService,
     private readonly sessionService: SessionService,
+    private readonly loginHistoryRepo: LoginHistoryRepository,
   ) {}
 
   // ─── Register ──────────────────────────────────────────────────────────────
@@ -98,12 +100,31 @@ export class AuthService {
       throw new UnauthorizedException('Account is disabled');
     }
 
-    const passwordValid = await this.passwordService.comparePassword(dto.password, user.password);
+    const passwordValid =
+      await this.passwordService.comparePassword(
+        dto.password,
+        user.password,
+      );
+
     if (!passwordValid) {
-      throw new UnauthorizedException('Invalid credentials');
+      await this.loginHistoryRepo.create({
+        userId: user.id,
+        success: false,
+      });
+
+      throw new UnauthorizedException(
+        'Invalid credentials',
+      );
     }
 
-    await this.userRepo.update(user.id, { lastLoginAt: new Date() });
+    await this.userRepo.update(user.id, {
+      lastLoginAt: new Date(),
+    });
+
+    await this.loginHistoryRepo.create({
+      userId: user.id,
+      success: true,
+    });
 
     const payload: JwtPayload = { sub: user.id, email: user.email, role: user.role };
     const tokens = await this.sessionService.createSession(user.id, payload);
@@ -123,12 +144,24 @@ export class AuthService {
       throw new UnauthorizedException('Invalid or expired refresh token');
     }
 
+    if (!payload.jti) {
+      throw new UnauthorizedException('Invalid refresh token session');
+    }
+
     const user = await this.userRepo.findById(payload.sub);
     if (!user || !user.isActive) {
       throw new UnauthorizedException('User not found or disabled');
     }
 
-    const tokens = await this.sessionService.rotateSession(user.id, {
+    const session = await this.sessionService.validateRefreshSession(payload.jti,user.id,dto.refreshToken);
+    if (!session) {
+      throw new UnauthorizedException('Invalid or revoked refresh token');
+    }
+
+    /** Revoke only the session that was used. Other devices remain logged in.**/
+    await this.sessionService.revokeSession(session.id);
+
+    const tokens = await this.sessionService.createSession(user.id, {
       sub: user.id,
       email: user.email,
       role: user.role,
