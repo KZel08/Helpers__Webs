@@ -31,6 +31,18 @@ export class PasswordService {
     if (longRunRegex.test(password)) {
       throw new BadRequestException('Password contains an excessively long repeated character sequence');
     }
+
+    // Disallow certain symbols commonly used in database queries or SQL injection
+    // e.g. semicolon, colon, comma, single/double quotes, backticks, and comment markers
+    const forbiddenSymbolsRegex = /[;:,'"`]/;
+    if (
+      forbiddenSymbolsRegex.test(password) ||
+      /--/.test(password) ||
+      /\/\*/.test(password) ||
+      /\*\//.test(password)
+    ) {
+      throw new BadRequestException('Password contains forbidden database-related symbols');
+    }
   }
 
   async hashPassword(password: string): Promise<string> {
