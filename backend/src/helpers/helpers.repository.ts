@@ -9,20 +9,36 @@ export class HelpersRepository {
 
   async findAll(params: { page: number; limit: number; categoryId?: string }) {
     const skip = (params.page - 1) * params.limit;
+
+    const where: Prisma.HelperProfileWhereInput = {
+      verificationStatus: VerificationStatus.VERIFIED,
+    };
+
     const [helpers, total] = await this.prisma.$transaction([
       this.prisma.helperProfile.findMany({
+        where,
         skip,
         take: params.limit,
         include: {
-          user: { select: { id: true, firstName: true, lastName: true, email: true, avatarUrl: true } },
+          user: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              email: true,
+              avatarUrl: true,
+            },
+          },
           services: params.categoryId
             ? { where: { categoryId: params.categoryId } }
             : true,
         },
         orderBy: { rating: 'desc' },
       }),
-      this.prisma.helperProfile.count(),
+
+      this.prisma.helperProfile.count({ where }),
     ]);
+
     return { helpers, total };
   }
 

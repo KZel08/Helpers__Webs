@@ -13,6 +13,7 @@ import { AdminService } from './admin.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
+import { VerifyHelperDto } from './dto/verify-helper.dto';
 
 @ApiTags('Admin')
 @ApiBearerAuth('JWT-auth')
@@ -53,8 +54,8 @@ export class AdminController {
   @Put('helpers/:id/verify')
   async verifyHelper(
     @Param('id') id: string,
-    @Body('approved') approved: boolean,
+    @Body() dto: VerifyHelperDto,
   ) {
-    return this.adminService.verifyHelper(id, approved);
+    return this.adminService.verifyHelper(id, dto.approved);
   }
 }
