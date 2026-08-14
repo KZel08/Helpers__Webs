@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
 import { UsersRepository } from './users.repository';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 
@@ -14,8 +14,22 @@ export class UsersService {
 
   async updateProfile(userId: string, dto: UpdateProfileDto) {
     const user = await this.usersRepo.findById(userId);
-    if (!user) throw new NotFoundException('User not found');
-    return this.usersRepo.update(userId, { ...dto });
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    if (dto.phone && dto.phone !== user.phone) {
+      const existingUser = await this.usersRepo.findByPhone(dto.phone);
+
+      if (existingUser && existingUser.id !== userId) {
+        throw new ConflictException(
+          'An account with this phone number already exists',
+        );
+      }
+    }
+
+    return this.usersRepo.update(userId, dto);
   }
 
   async deleteAccount(userId: string) {
