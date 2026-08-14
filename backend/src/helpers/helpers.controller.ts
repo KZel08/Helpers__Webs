@@ -3,6 +3,7 @@ import {
   Controller,
   Get,
   Param,
+  ParseEnumPipe,
   Post,
   Put,
   Query,
@@ -11,11 +12,12 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { ApiBearerAuth, ApiConsumes, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiBody, ApiConsumes, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { DocumentType } from '@prisma/client';
 import { HelpersService } from './helpers.service';
 import { HelperGuard } from '../auth/guards/helper.guard';
 import { UpdateHelperDto } from './dto/update-helper.dto';
+import { UploadHelperDocumentDto } from './dto/upload-helper-document.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import type { JwtPayload } from '../auth/services/token.service';
@@ -62,15 +64,29 @@ export class HelpersController {
 
   @ApiOperation({ summary: 'Upload verification documents' })
   @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    description: 'Helper verification document',
+    type: UploadHelperDocumentDto,
+  })
   @ApiBearerAuth('JWT-auth')
+  @ApiQuery({
+    name: 'type',
+    required: true,
+    enum: DocumentType,
+    description: 'Type of verification document',
+  })
   @UseGuards(JwtAuthGuard, HelperGuard)
   @Post('documents')
   @UseInterceptors(FileInterceptor('file'))
   async uploadDocument(
     @CurrentUser() user: JwtPayload,
     @UploadedFile() file: Express.Multer.File,
-    @Query('type') type: DocumentType,
+    @Query('type', new ParseEnumPipe(DocumentType)) type: DocumentType,
   ) {
-    return this.helpersService.uploadDocument(user.sub, file, type);
+    return this.helpersService.uploadDocument(
+      user.sub,
+      file,
+      type,
+    );
   }
 }

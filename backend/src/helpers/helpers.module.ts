@@ -4,9 +4,10 @@ import { HelpersService } from './helpers.service';
 import { HelpersRepository } from './helpers.repository';
 import { PrismaModule } from '../prisma/prisma.module';
 import { AuthModule } from '../auth/auth.module';
+import { UploadsModule } from '../uploads/uploads.module';
 
 @Module({
-  imports: [PrismaModule, AuthModule],
+  imports: [PrismaModule, AuthModule, UploadsModule],
   controllers: [HelpersController],
   providers: [HelpersService, HelpersRepository],
   exports: [HelpersService, HelpersRepository],

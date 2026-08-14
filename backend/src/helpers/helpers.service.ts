@@ -1,11 +1,15 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { HelpersRepository } from './helpers.repository';
+import { UploadsService } from '../uploads/uploads.service';
 import { UpdateHelperDto } from './dto/update-helper.dto';
 import { DocumentType } from '@prisma/client';
 
 @Injectable()
 export class HelpersService {
-  constructor(private readonly helpersRepo: HelpersRepository) {}
+  constructor(
+    private readonly helpersRepo: HelpersRepository,
+    private readonly uploadsService: UploadsService,
+  ) {}
 
   async findAll(query: { page?: number; limit?: number; categoryId?: string }) {
     const page = query.page ?? 1;
@@ -39,18 +43,23 @@ export class HelpersService {
     type: DocumentType,
   ) {
     const profile = await this.helpersRepo.findByUserId(userId);
-    if (!profile) throw new NotFoundException('Helper profile not found');
 
-    // In production, upload to Cloudinary/GCS here and get the URL
-    const stubUrl = `https://storage.example.com/documents/${userId}/${file.originalname}`;
+    if (!profile) {
+      throw new NotFoundException('Helper profile not found');
+    }
+
+    const uploadedFile = await this.uploadsService.uploadFile(
+      file,
+      'helpers/documents',
+    );
 
     return this.helpersRepo.createDocument({
       helperId: profile.id,
       type,
-      fileName: file.originalname,
-      url: stubUrl,
-      mimeType: file.mimetype,
-      fileSize: file.size,
+      fileName: uploadedFile.fileName,
+      url: uploadedFile.url,
+      mimeType: uploadedFile.mimeType,
+      fileSize: uploadedFile.size,
     });
   }
 }

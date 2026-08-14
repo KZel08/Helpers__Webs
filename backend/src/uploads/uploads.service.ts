@@ -1,5 +1,11 @@
-import { Injectable, Logger } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  Logger,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { v2 as cloudinary, UploadApiResponse } from 'cloudinary';
 
 @Injectable()
 export class UploadsService {
@@ -9,26 +15,83 @@ export class UploadsService {
 
   async uploadFile(
     file: Express.Multer.File,
-    folder: string = 'uploads',
-  ): Promise<{ url: string; fileName: string; mimeType: string; size: number }> {
-    const cloudinaryUrl = this.configService.get<string>('CLOUDINARY_URL');
-
-    if (cloudinaryUrl) {
-      // TODO: real Cloudinary upload using cloudinary SDK
-      // const result = await cloudinary.uploader.upload(file.path, { folder });
-      // return { url: result.secure_url, ... };
-      this.logger.log('[DEV] Cloudinary SDK would be called here');
-    } else {
-      this.logger.warn('[DEV] CLOUDINARY_URL not set — returning stub URL');
+    folder = 'uploads',
+  ): Promise<{
+    url: string;
+    fileName: string;
+    mimeType: string;
+    size: number;
+  }> {
+    if (!file) {
+      throw new BadRequestException('File is required');
     }
 
-    const stubUrl = `https://storage.example.com/${folder}/${Date.now()}_${file.originalname}`;
+    const cloudinaryUrl =
+      this.configService.get<string>('CLOUDINARY_URL');
 
-    return {
-      url: stubUrl,
-      fileName: file.originalname,
-      mimeType: file.mimetype,
-      size: file.size,
-    };
+    if (!cloudinaryUrl) {
+      throw new ServiceUnavailableException(
+        'File storage is not configured',
+      );
+    }
+
+    const parsedUrl = new URL(cloudinaryUrl);
+
+    cloudinary.config({
+      cloud_name: parsedUrl.hostname,
+      api_key: parsedUrl.username,
+      api_secret: decodeURIComponent(parsedUrl.password),
+      secure: true,
+    });
+
+    try {
+      const result = await new Promise<UploadApiResponse>(
+        (resolve, reject) => {
+          const uploadStream = cloudinary.uploader.upload_stream(
+            {
+              folder,
+              resource_type: 'raw',
+            },
+            (error, result) => {
+              if (error) {
+                reject(error);
+                return;
+              }
+
+              if (!result) {
+                reject(
+                  new Error('Cloudinary returned no upload result'),
+                );
+                return;
+              }
+
+              resolve(result);
+            },
+          );
+
+          uploadStream.end(file.buffer);
+        },
+      );
+
+      this.logger.log(
+        `File uploaded successfully: ${result.public_id}`,
+      );
+
+      return {
+        url: result.secure_url,
+        fileName: file.originalname,
+        mimeType: file.mimetype,
+        size: file.size,
+      };
+    } catch (error) {
+      this.logger.error(
+        'Cloudinary upload failed',
+        error instanceof Error ? error.stack : String(error),
+      );
+
+      throw new ServiceUnavailableException(
+        'File upload failed',
+      );
+    }
   }
 }
