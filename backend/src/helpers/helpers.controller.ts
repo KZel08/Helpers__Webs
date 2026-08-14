@@ -14,6 +14,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiBearerAuth, ApiConsumes, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { DocumentType } from '@prisma/client';
 import { HelpersService } from './helpers.service';
+import { HelperGuard } from '../auth/guards/helper.guard';
 import { UpdateHelperDto } from './dto/update-helper.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
@@ -37,6 +38,14 @@ export class HelpersController {
     return this.helpersService.findAll({ page, limit, categoryId });
   }
 
+  @ApiOperation({ summary: 'Get your helper profile' })
+  @ApiBearerAuth('JWT-auth')
+  @UseGuards(JwtAuthGuard, HelperGuard)
+  @Get('profile')
+  async getProfile(@CurrentUser() user: JwtPayload) {
+    return this.helpersService.getOrCreateProfile(user.sub);
+  }
+
   @ApiOperation({ summary: 'Get helper profile by ID' })
   @Get(':id')
   async findOne(@Param('id') id: string) {
@@ -45,7 +54,7 @@ export class HelpersController {
 
   @ApiOperation({ summary: 'Update your helper profile' })
   @ApiBearerAuth('JWT-auth')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, HelperGuard)
   @Put('profile')
   async updateProfile(@CurrentUser() user: JwtPayload, @Body() dto: UpdateHelperDto) {
     return this.helpersService.updateProfile(user.sub, dto);
@@ -54,7 +63,7 @@ export class HelpersController {
   @ApiOperation({ summary: 'Upload verification documents' })
   @ApiConsumes('multipart/form-data')
   @ApiBearerAuth('JWT-auth')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, HelperGuard)
   @Post('documents')
   @UseInterceptors(FileInterceptor('file'))
   async uploadDocument(
