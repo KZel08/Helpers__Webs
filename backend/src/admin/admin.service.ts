@@ -1,9 +1,14 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { ServiceRequestsService } from '../service-requests/service-requests.service';
+import { ServiceRequestStatus } from '@prisma/client';
 
 @Injectable()
 export class AdminService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly serviceRequestsService: ServiceRequestsService,
+  ) {}
 
   async getStats() {
     const [totalUsers, totalHelpers, totalBookings, totalRevenue, pendingVerifications] =
@@ -87,5 +92,17 @@ export class AdminService {
       where: { id: helperId },
       data: { verificationStatus: approved ? 'VERIFIED' : 'REJECTED' },
     });
+  }
+
+  async getServiceRequests(page: number = 1, limit: number = 20, status?: string) {
+    return this.serviceRequestsService.findMany({
+      page,
+      limit,
+      status: status as ServiceRequestStatus | undefined,
+    });
+  }
+
+  async reviewServiceRequest(id: string, dto: { approved: boolean; adminNotes?: string }, reviewerId: string) {
+    return this.serviceRequestsService.review(id, dto, reviewerId);
   }
 }

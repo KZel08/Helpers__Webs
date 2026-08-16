@@ -84,6 +84,41 @@ enum TicketPriority {
   URGENT
 }
 
+enum ServiceRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model ServiceRequest {
+  id                 String              @id @default(uuid())
+
+  helperId            String
+  helper              HelperProfile      @relation(fields: [helperId], references: [id], onDelete: Cascade)
+
+  title               String
+  description         String?
+  categoryId          String
+  category            Category           @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  suggestedPrice      Int
+  suggestedPriceType  PriceType
+  suggestedDuration   Int?
+
+  status              ServiceRequestStatus @default(PENDING)
+
+  adminNotes          String?
+  reviewedBy          String?
+  reviewedAt          DateTime?
+
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+
+  @@index([helperId])
+  @@index([categoryId])
+  @@index([status])
+}
+
 model User {
   id              String   @id @default(uuid())
   email           String   @unique
@@ -135,6 +170,7 @@ model HelperProfile {
   receivedBookings   Booking[]           @relation("HelperBookings")
   reviews            Review[]
   documents          HelperDocument[]
+  serviceRequests    ServiceRequest[]
 }
 
 model Category {
@@ -143,6 +179,7 @@ model Category {
   description String?
   icon        String?
   services    Service[]
+  serviceRequests ServiceRequest[]
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }

@@ -5,14 +5,16 @@ import {
 } from '@nestjs/common';
 import { ServicesRepository } from './services.repository';
 import { HelpersRepository } from '../helpers/helpers.repository';
-import { CreateServiceDto } from './dto/create-service.dto';
+import { ServiceRequestsService } from '../service-requests/service-requests.service';
 import { UpdateServiceDto } from './dto/update-service.dto';
+import { CreateServiceRequestDto } from '../service-requests/dto/create-service-request.dto';
 
 @Injectable()
 export class ServicesService {
   constructor(
     private readonly servicesRepo: ServicesRepository,
     private readonly helpersRepo: HelpersRepository,
+    private readonly serviceRequestsService: ServiceRequestsService,
   ) {}
 
   async findAll(query: {
@@ -33,12 +35,6 @@ export class ServicesService {
     return service;
   }
 
-  async create(userId: string, dto: CreateServiceDto) {
-    const profile = await this.helpersRepo.findByUserId(userId);
-    if (!profile) throw new ForbiddenException('You must be a verified helper to create services');
-    return this.servicesRepo.create(profile.id, dto);
-  }
-
   async update(userId: string, serviceId: string, dto: UpdateServiceDto) {
     const service = await this.findById(serviceId);
     const profile = await this.helpersRepo.findByUserId(userId);
@@ -56,5 +52,33 @@ export class ServicesService {
     }
     await this.servicesRepo.delete(serviceId);
     return { message: 'Service deleted successfully' };
+  }
+
+  async createServiceRequest(userId: string, dto: CreateServiceRequestDto) {
+    const profile = await this.helpersRepo.findByUserId(userId);
+
+    if (!profile || profile.verificationStatus !== 'VERIFIED') {
+      throw new ForbiddenException(
+        'Only verified helpers can request new services',
+      );
+    }
+
+    return this.serviceRequestsService.create(profile.id, dto);
+  }
+
+  async getMyServiceRequests(userId: string, page = 1, limit = 10) {
+    const profile = await this.helpersRepo.findByUserId(userId);
+
+    if (!profile || profile.verificationStatus !== 'VERIFIED') {
+      throw new ForbiddenException(
+        'Only verified helpers can view service requests',
+      );
+    }
+
+    return this.serviceRequestsService.findMany({
+      page,
+      limit,
+      helperId: profile.id,
+    });
   }
 }
