@@ -26,7 +26,11 @@ export class ServicesService {
   }) {
     const page = query.page ?? 1;
     const limit = Math.min(query.limit ?? 10, 50);
-    return this.servicesRepo.findAll({ page, limit, ...query });
+    return this.servicesRepo.findAll({
+      ...query,
+      page,
+      limit,
+    });
   }
 
   async findById(id: string) {
