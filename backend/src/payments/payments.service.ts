@@ -11,7 +11,7 @@ import { PaymentsRepository } from './payments.repository';
 import { BookingsRepository } from '../bookings/bookings.repository';
 import { CreatePaymentDto } from './dto/create-payment.dto';
 import { VerifyPaymentDto } from './dto/verify-payment.dto';
-import { PaymentStatus } from '@prisma/client';
+import { BookingStatus, PaymentStatus } from '@prisma/client';
 
 @Injectable()
 export class PaymentsService {
@@ -28,6 +28,10 @@ export class PaymentsService {
     if (!booking) throw new NotFoundException('Booking not found');
     if (booking.customerId !== userId) {
       throw new BadRequestException('You cannot pay for this booking');
+    }
+
+    if (booking.status === BookingStatus.CANCELLED) {
+      throw new BadRequestException('Cannot create payment for a cancelled booking');
     }
 
     const existing = await this.paymentsRepo.findByBookingId(dto.bookingId);

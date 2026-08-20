@@ -9,6 +9,7 @@ import { UpdateBookingDto } from './dto/update-booking.dto';
 import { BookingStatus } from '@prisma/client';
 import { ServicesRepository } from '../services/services.repository';
 import { HelpersRepository } from '../helpers/helpers.repository';
+import { UsersRepository } from '../users/users.repository';
 
 @Injectable()
 export class BookingsService {
@@ -16,6 +17,7 @@ export class BookingsService {
     private readonly bookingsRepo: BookingsRepository,
     private readonly servicesRepo: ServicesRepository,
     private readonly helpersRepo: HelpersRepository,
+    private readonly usersRepo: UsersRepository,
   ) {}
 
   async create(customerId: string, dto: CreateBookingDto) {
@@ -23,6 +25,16 @@ export class BookingsService {
 
     if (!service || !service.isActive) {
       throw new NotFoundException('Service not found or inactive');
+    }
+
+    const address = await this.usersRepo.findAddressById(dto.addressId);
+
+    if (!address) {
+      throw new NotFoundException('Address not found');
+    }
+
+    if (address.userId !== customerId) {
+      throw new ForbiddenException('You do not have access to this address');
     }
 
     return this.bookingsRepo.create(customerId, {

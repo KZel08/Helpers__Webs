@@ -1,6 +1,8 @@
-import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException, ForbiddenException } from '@nestjs/common';
 import { UsersRepository } from './users.repository';
 import { UpdateProfileDto } from './dto/update-profile.dto';
+import { CreateAddressDto } from './dto/create-address.dto';
+import { UpdateAddressDto } from './dto/update-address.dto';
 
 @Injectable()
 export class UsersService {
@@ -37,5 +39,66 @@ export class UsersService {
     if (!user) throw new NotFoundException('User not found');
     await this.usersRepo.softDelete(userId);
     return { message: 'Account deleted successfully' };
+  }
+
+  // ─── Address operations ─────────────────────────────────────────────────
+
+  async getAddresses(userId: string) {
+    return this.usersRepo.findAddresses(userId);
+  }
+
+  async getAddressById(userId: string, addressId: string) {
+    const address = await this.usersRepo.findAddressById(addressId);
+
+    if (!address) {
+      throw new NotFoundException('Address not found');
+    }
+
+    if (address.userId !== userId) {
+      throw new ForbiddenException('You do not have access to this address');
+    }
+
+    return address;
+  }
+
+  async createAddress(userId: string, dto: CreateAddressDto) {
+    if (dto.isDefault) {
+      await this.usersRepo.clearDefaultAddresses(userId);
+    }
+
+    return this.usersRepo.createAddress(userId, dto);
+  }
+
+  async updateAddress(userId: string, addressId: string, dto: UpdateAddressDto) {
+    const address = await this.usersRepo.findAddressById(addressId);
+
+    if (!address) {
+      throw new NotFoundException('Address not found');
+    }
+
+    if (address.userId !== userId) {
+      throw new ForbiddenException('You do not have access to this address');
+    }
+
+    if (dto.isDefault) {
+      await this.usersRepo.clearDefaultAddresses(userId);
+    }
+
+    return this.usersRepo.updateAddress(addressId, dto);
+  }
+
+  async deleteAddress(userId: string, addressId: string) {
+    const address = await this.usersRepo.findAddressById(addressId);
+
+    if (!address) {
+      throw new NotFoundException('Address not found');
+    }
+
+    if (address.userId !== userId) {
+      throw new ForbiddenException('You do not have access to this address');
+    }
+
+    await this.usersRepo.deleteAddress(addressId);
+    return { message: 'Address deleted successfully' };
   }
 }

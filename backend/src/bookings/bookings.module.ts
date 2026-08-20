@@ -6,9 +6,10 @@ import { PrismaModule } from '../prisma/prisma.module';
 import { AuthModule } from '../auth/auth.module';
 import { ServicesModule } from '../services/services.module';
 import { HelpersModule } from '../helpers/helpers.module';
+import { UsersModule } from '../users/users.module';
 
 @Module({
-  imports: [PrismaModule, AuthModule, ServicesModule, HelpersModule],
+  imports: [PrismaModule, AuthModule, ServicesModule, HelpersModule, UsersModule],
   controllers: [BookingsController],
   providers: [BookingsService, BookingsRepository],
   exports: [BookingsService, BookingsRepository],

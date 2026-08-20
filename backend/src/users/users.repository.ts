@@ -1,6 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { Role, Prisma } from '@prisma/client';
+import { CreateAddressDto } from './dto/create-address.dto';
+import { UpdateAddressDto } from './dto/update-address.dto';
 
 @Injectable()
 export class UsersRepository {
@@ -48,5 +50,46 @@ export class UsersRepository {
       this.prisma.user.count({ where }),
     ]);
     return { users, total };
+  }
+
+  // ─── Address operations ─────────────────────────────────────────────────
+
+  async findAddresses(userId: string) {
+    return this.prisma.address.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  async findAddressById(id: string) {
+    return this.prisma.address.findUnique({ where: { id } });
+  }
+
+  async createAddress(userId: string, dto: CreateAddressDto) {
+    return this.prisma.address.create({
+      data: {
+        userId,
+        ...dto,
+      },
+    });
+  }
+
+  async updateAddress(id: string, dto: UpdateAddressDto) {
+    return this.prisma.address.update({
+      where: { id },
+      data: dto,
+    });
+  }
+
+  async deleteAddress(id: string) {
+    return this.prisma.address.delete({ where: { id } });
+  }
+
+  async clearDefaultAddresses(userId: string, tx?: any) {
+    const prisma = tx ?? this.prisma;
+    return prisma.address.updateMany({
+      where: { userId, isDefault: true },
+      data: { isDefault: false },
+    });
   }
 }
