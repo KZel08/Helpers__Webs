@@ -1,8 +1,10 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
+  Post,
   Put,
   Query,
   UseGuards,
@@ -17,6 +19,9 @@ import { CurrentUser } from '../common/decorators/current-user.decorator';
 import type { JwtPayload } from '../auth/services/token.service';
 import { VerifyHelperDto } from './dto/verify-helper.dto';
 import { ReviewServiceRequestDto } from '../service-requests/dto/review-service-request.dto';
+import { CreateCategoryDto } from './dto/create-category.dto';
+import { UpdateCategoryDto } from './dto/update-category.dto';
+import { CreateAdminServiceDto } from './dto/create-admin-service.dto';
 
 @ApiTags('Admin')
 @ApiBearerAuth('JWT-auth')
@@ -74,6 +79,39 @@ export class AdminController {
     @Body() dto: ReviewServiceRequestDto,
   ) {
     return this.adminService.reviewServiceRequest(id, dto, user.sub);
+  }
+
+  @ApiOperation({ summary: 'List all service categories (admin only)' })
+  @Get('categories')
+  async getCategories() {
+    return this.adminService.getCategories();
+  }
+
+  @ApiOperation({ summary: 'Create a service category (admin only)' })
+  @Post('categories')
+  async createCategory(@Body() dto: CreateCategoryDto) {
+    return this.adminService.createCategory(dto);
+  }
+
+  @ApiOperation({ summary: 'Update a service category (admin only)' })
+  @Put('categories/:id')
+  async updateCategory(
+    @Param('id') id: string,
+    @Body() dto: UpdateCategoryDto,
+  ) {
+    return this.adminService.updateCategory(id, dto);
+  }
+
+  @ApiOperation({ summary: 'Delete a service category (admin only)' })
+  @Delete('categories/:id')
+  async deleteCategory(@Param('id') id: string) {
+    return this.adminService.deleteCategory(id);
+  }
+
+  @ApiOperation({ summary: 'Create a service for a helper (admin only)' })
+  @Post('services')
+  async createService(@Body() dto: CreateAdminServiceDto) {
+    return this.adminService.createService(dto);
   }
 
   @ApiOperation({ summary: 'Approve or reject a helper verification' })

@@ -79,7 +79,7 @@ export class AuthService {
       lastName: dto.lastName,
       password: hashedPassword,
       phone: dto.phone,
-      role: dto.role ?? Role.CUSTOMER,
+      role: Role.CUSTOMER,
     });
 
     /*

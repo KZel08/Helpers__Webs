@@ -7,16 +7,40 @@ import { BookingsRepository } from './bookings.repository';
 import { CreateBookingDto } from './dto/create-booking.dto';
 import { UpdateBookingDto } from './dto/update-booking.dto';
 import { BookingStatus } from '@prisma/client';
+import { ServicesRepository } from '../services/services.repository';
+import { HelpersRepository } from '../helpers/helpers.repository';
 
 @Injectable()
 export class BookingsService {
-  constructor(private readonly bookingsRepo: BookingsRepository) {}
+  constructor(
+    private readonly bookingsRepo: BookingsRepository,
+    private readonly servicesRepo: ServicesRepository,
+    private readonly helpersRepo: HelpersRepository,
+  ) {}
 
   async create(customerId: string, dto: CreateBookingDto) {
-    return this.bookingsRepo.create(customerId, dto);
+    const service = await this.servicesRepo.findById(dto.serviceId);
+
+    if (!service || !service.isActive) {
+      throw new NotFoundException('Service not found or inactive');
+    }
+
+    return this.bookingsRepo.create(customerId, {
+      ...dto,
+      helperId: service.helperId,
+      totalAmount: service.price,
+    });
   }
 
   async findMyBookings(userId: string, role: 'customer' | 'helper') {
+    if (role === 'helper') {
+      const helper = await this.helpersRepo.findByUserId(userId);
+      if (!helper) {
+        return [];
+      }
+      return this.bookingsRepo.findByUser(helper.id, role);
+    }
+
     return this.bookingsRepo.findByUser(userId, role);
   }
 
@@ -29,8 +53,9 @@ export class BookingsService {
   async update(userId: string, bookingId: string, dto: UpdateBookingDto) {
     const booking = await this.findById(bookingId);
 
+    const helper = await this.helpersRepo.findByUserId(userId);
     const isCustomer = booking.customerId === userId;
-    const isHelper = booking.helperId === userId;
+    const isHelper = !!helper && booking.helperId === helper.id;
 
     if (!isCustomer && !isHelper) {
       throw new ForbiddenException('You are not part of this booking');

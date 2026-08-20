@@ -38,4 +38,7 @@ export const envValidationSchema = Joi.object({
 
   THROTTLE_TTL: Joi.number().default(60),
   THROTTLE_LIMIT: Joi.number().default(100),
+
+  ADMIN_EMAIL: Joi.string().email().optional().allow(''),
+  ADMIN_PASSWORD: Joi.string().optional().allow(''),
 }).options({ allowUnknown: true });

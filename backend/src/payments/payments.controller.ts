@@ -31,8 +31,11 @@ export class PaymentsController {
   @ApiOperation({ summary: 'Verify Razorpay payment response' })
   @Post('verify')
   @HttpCode(HttpStatus.OK)
-  async verifyPayment(@Body() dto: VerifyPaymentDto) {
-    return this.paymentsService.verifyPayment(dto);
+  async verifyPayment(
+    @CurrentUser() user: JwtPayload,
+    @Body() dto: VerifyPaymentDto,
+  ) {
+    return this.paymentsService.verifyPayment(user.sub, dto);
   }
 
   @ApiOperation({ summary: 'Get payment history' })

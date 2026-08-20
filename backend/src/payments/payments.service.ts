@@ -3,6 +3,7 @@ import {
   NotFoundException,
   Logger,
   BadRequestException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as crypto from 'crypto';
@@ -10,7 +11,7 @@ import { PaymentsRepository } from './payments.repository';
 import { BookingsRepository } from '../bookings/bookings.repository';
 import { CreatePaymentDto } from './dto/create-payment.dto';
 import { VerifyPaymentDto } from './dto/verify-payment.dto';
-import { PaymentStatus, BookingStatus } from '@prisma/client';
+import { PaymentStatus } from '@prisma/client';
 
 @Injectable()
 export class PaymentsService {
@@ -27,6 +28,23 @@ export class PaymentsService {
     if (!booking) throw new NotFoundException('Booking not found');
     if (booking.customerId !== userId) {
       throw new BadRequestException('You cannot pay for this booking');
+    }
+
+    const existing = await this.paymentsRepo.findByBookingId(dto.bookingId);
+    if (existing) {
+      if (existing.status === PaymentStatus.SUCCESS) {
+        throw new BadRequestException('Booking is already paid');
+      }
+
+      if (existing.status === PaymentStatus.PENDING) {
+        return {
+          payment: existing,
+          orderId: existing.transactionId ?? `order_stub_${Date.now()}`,
+          amount: existing.amount,
+          currency: 'INR',
+          keyId: this.configService.get<string>('RAZORPAY_KEY') ?? 'rzp_test_stub',
+        };
+      }
     }
 
     const razorpayKey = this.configService.get<string>('RAZORPAY_KEY');
@@ -67,7 +85,17 @@ export class PaymentsService {
     };
   }
 
-  async verifyPayment(dto: VerifyPaymentDto) {
+  async verifyPayment(userId: string, dto: VerifyPaymentDto) {
+    const payment = await this.paymentsRepo.findByProviderOrderId(dto.razorpayOrderId);
+
+    if (!payment) {
+      throw new NotFoundException('Payment not found for this Razorpay order');
+    }
+
+    if (payment.booking.customerId !== userId) {
+      throw new ForbiddenException('You do not own this payment');
+    }
+
     const razorpaySecret = this.configService.get<string>('RAZORPAY_SECRET');
 
     if (razorpaySecret) {
@@ -83,16 +111,12 @@ export class PaymentsService {
       this.logger.warn('[DEV] Skipping Razorpay signature verification — key not set');
     }
 
-    const payment = await this.paymentsRepo.update(
-      dto.razorpayOrderId,
-      {
-        status: PaymentStatus.SUCCESS,
-        transactionId: dto.razorpayPaymentId,
-        paidAt: new Date(),
-      },
-    );
+    const updated = await this.paymentsRepo.update(payment.id, {
+      status: PaymentStatus.SUCCESS,
+      paidAt: new Date(),
+    });
 
-    return { message: 'Payment verified successfully', payment };
+    return { message: 'Payment verified successfully', payment: updated };
   }
 
   async getHistory(userId: string) {

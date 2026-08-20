@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import type { Prisma, PaymentStatus } from '@prisma/client';
+import type { Prisma } from '@prisma/client';
 
 @Injectable()
 export class PaymentsRepository {
@@ -12,6 +12,13 @@ export class PaymentsRepository {
 
   async findByBookingId(bookingId: string) {
     return this.prisma.payment.findUnique({ where: { bookingId } });
+  }
+
+  async findByProviderOrderId(providerOrderId: string) {
+    return this.prisma.payment.findFirst({
+      where: { transactionId: providerOrderId },
+      include: { booking: true },
+    });
   }
 
   async findByUser(customerId: string) {

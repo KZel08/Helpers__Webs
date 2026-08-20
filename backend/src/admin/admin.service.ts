@@ -1,13 +1,24 @@
-import { Injectable } from '@nestjs/common';
+import {
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { ServiceRequestsService } from '../service-requests/service-requests.service';
+import { CategoriesService } from '../categories/categories.service';
+import { ServicesRepository } from '../services/services.repository';
 import { ServiceRequestStatus } from '@prisma/client';
+import { CreateCategoryDto } from './dto/create-category.dto';
+import { UpdateCategoryDto } from './dto/update-category.dto';
+import { CreateAdminServiceDto } from './dto/create-admin-service.dto';
 
 @Injectable()
 export class AdminService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly serviceRequestsService: ServiceRequestsService,
+    private readonly categoriesService: CategoriesService,
+    private readonly servicesRepository: ServicesRepository,
   ) {}
 
   async getStats() {
@@ -104,5 +115,54 @@ export class AdminService {
 
   async reviewServiceRequest(id: string, dto: { approved: boolean; adminNotes?: string }, reviewerId: string) {
     return this.serviceRequestsService.review(id, dto, reviewerId);
+  }
+
+  async getCategories() {
+    return this.categoriesService.findAll();
+  }
+
+  async createCategory(dto: CreateCategoryDto) {
+    return this.categoriesService.create(dto);
+  }
+
+  async updateCategory(id: string, dto: UpdateCategoryDto) {
+    return this.categoriesService.update(id, dto);
+  }
+
+  async deleteCategory(id: string) {
+    return this.categoriesService.delete(id);
+  }
+
+  async createService(dto: CreateAdminServiceDto) {
+    const category = await this.prisma.category.findUnique({
+      where: { id: dto.categoryId },
+    });
+
+    if (!category) {
+      throw new NotFoundException('Category not found');
+    }
+
+    const helper = await this.prisma.helperProfile.findUnique({
+      where: { id: dto.helperId },
+    });
+
+    if (!helper) {
+      throw new NotFoundException('Helper profile not found');
+    }
+
+    if (helper.verificationStatus !== 'VERIFIED') {
+      throw new ForbiddenException(
+        'Services can only be created for verified helpers',
+      );
+    }
+
+    return this.servicesRepository.create(dto.helperId, {
+      title: dto.title,
+      description: dto.description,
+      categoryId: dto.categoryId,
+      price: dto.price,
+      priceType: dto.priceType,
+      duration: dto.duration,
+    });
   }
 }

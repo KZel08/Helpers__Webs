@@ -1,12 +1,7 @@
-import { IsDateString, IsInt, IsNotEmpty, IsOptional, IsString, Min } from 'class-validator';
+import { IsDateString, IsNotEmpty, IsOptional, IsString } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class CreateBookingDto {
-  @ApiProperty({ example: 'helper_profile_id' })
-  @IsString()
-  @IsNotEmpty()
-  helperId: string;
-
   @ApiProperty({ example: 'service_id' })
   @IsString()
   @IsNotEmpty()
@@ -30,9 +25,4 @@ export class CreateBookingDto {
   @IsOptional()
   @IsString()
   notes?: string;
-
-  @ApiProperty({ example: 599, description: 'Total amount in INR' })
-  @IsInt()
-  @Min(0)
-  totalAmount: number;
 }

@@ -4,11 +4,16 @@ import { PrismaService } from '../prisma/prisma.service';
 import { BookingStatus } from '@prisma/client';
 import { CreateBookingDto } from './dto/create-booking.dto';
 
+type BookingCreateInput = CreateBookingDto & {
+  helperId: string;
+  totalAmount: number;
+};
+
 @Injectable()
 export class BookingsRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  async create(customerId: string, dto: CreateBookingDto) {
+  async create(customerId: string, dto: BookingCreateInput) {
     return this.prisma.booking.create({
       data: {
         customerId,
