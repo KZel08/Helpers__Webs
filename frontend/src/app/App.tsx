@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
 import { useCategories } from "../hooks/useCategories";
 import { useServices, useService } from "../hooks/useServices";
-import type { ServiceData } from "../lib/api";
+import { useAddresses } from "../hooks/useAddresses";
+import type { ServiceData, AddressData, CreateAddressRequest, UpdateAddressRequest } from "../lib/api";
 import {
   MapPin, Bell, Search, Star, ChevronRight, Home, Grid,
   CalendarCheck, User, Sparkles, Zap, Shield, Clock,
@@ -12,7 +13,7 @@ import {
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type Screen = "home" | "explore" | "bookings" | "profile" | "detail" | "booking";
+type Screen = "home" | "explore" | "bookings" | "profile" | "detail" | "booking" | "addresses";
 
 interface Provider {
   id: string;
@@ -842,6 +843,381 @@ function BookingScreen({ providerId, onBack, onConfirm, toast }: { providerId: s
   );
 }
 
+// ─── Address form modal ─────────────────────────────────────────────────────
+
+interface AddressFormValues {
+  label: string;
+  houseNo: string;
+  street: string;
+  city: string;
+  state: string;
+  country: string;
+  postalCode: string;
+  latitude: string;
+  longitude: string;
+  isDefault: boolean;
+}
+
+function toAddressFormValues(address?: Partial<AddressData> | null): AddressFormValues {
+  return {
+    label: address?.label ?? "",
+    houseNo: address?.houseNo ?? "",
+    street: address?.street ?? "",
+    city: address?.city ?? "",
+    state: address?.state ?? "",
+    country: address?.country ?? "",
+    postalCode: address?.postalCode ?? "",
+    latitude: address?.latitude != null ? String(address.latitude) : "",
+    longitude: address?.longitude != null ? String(address.longitude) : "",
+    isDefault: Boolean(address?.isDefault),
+  };
+}
+
+function toAddressPayload(values: AddressFormValues): CreateAddressRequest {
+  const payload: CreateAddressRequest = {
+    houseNo: values.houseNo.trim(),
+    street: values.street.trim(),
+    city: values.city.trim(),
+    state: values.state.trim(),
+    country: values.country.trim(),
+    postalCode: values.postalCode.trim(),
+    isDefault: Boolean(values.isDefault),
+  };
+
+  const label = values.label.trim();
+  if (label) payload.label = label;
+
+  if (values.latitude.trim()) payload.latitude = Number(values.latitude);
+  if (values.longitude.trim()) payload.longitude = Number(values.longitude);
+
+  return payload;
+}
+
+function AddressFormModal({
+  isOpen,
+  initialAddress,
+  onClose,
+  onSubmit,
+  isSubmitting,
+  submitError,
+}: {
+  isOpen: boolean;
+  initialAddress: AddressData | null;
+  onClose: () => void;
+  onSubmit: (payload: CreateAddressRequest) => Promise<void>;
+  isSubmitting: boolean;
+  submitError: string | null;
+}) {
+  const [form, setForm] = useState<AddressFormValues>(toAddressFormValues(initialAddress));
+  const [localError, setLocalError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setForm(toAddressFormValues(initialAddress));
+    setLocalError(null);
+  }, [initialAddress, isOpen]);
+
+  if (!isOpen) return null;
+
+  const updateField = (field: keyof AddressFormValues, value: string | boolean) => {
+    setForm((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+
+    const requiredFields: Array<keyof AddressFormValues> = ["houseNo", "street", "city", "state", "country", "postalCode"];
+    const missingField = requiredFields.find((field) => !String(form[field]).trim());
+    if (missingField) {
+      setLocalError("Please fill in all required address fields.");
+      return;
+    }
+
+    const latitude = form.latitude.trim();
+    const longitude = form.longitude.trim();
+    if ((latitude && Number.isNaN(Number(latitude))) || (longitude && Number.isNaN(Number(longitude)))) {
+      setLocalError("Latitude and longitude must be numeric values.");
+      return;
+    }
+
+    setLocalError(null);
+    await onSubmit(toAddressPayload(form));
+  };
+
+  const fieldClass = "w-full rounded-xl border border-[rgba(255,255,255,0.08)] bg-[#20242D] px-3 py-2.5 text-sm text-white outline-none placeholder:text-[#A5A9B5] focus:border-[#5B6CFF]";
+
+  return (
+    <div className="absolute inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm px-5 pb-8">
+      <div className="bg-[#171A21] rounded-3xl p-5 w-full max-h-[88vh] overflow-y-auto">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xl font-bold text-white" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>{initialAddress ? "Edit Address" : "Add Address"}</h2>
+          <button onClick={onClose} className="w-9 h-9 rounded-full bg-[#20242D] flex items-center justify-center active:scale-90 transition-transform">
+            <X size={16} className="text-white" />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+          <div>
+            <label className="block text-xs font-semibold uppercase tracking-[0.08em] text-[#A5A9B5] mb-1.5">Label</label>
+            <input value={form.label} onChange={(e) => updateField("label", e.target.value)} placeholder="Home, Office, etc." className={fieldClass} />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-semibold uppercase tracking-[0.08em] text-[#A5A9B5] mb-1.5">House No <span className="text-[#EF4444]">*</span></label>
+              <input value={form.houseNo} onChange={(e) => updateField("houseNo", e.target.value)} className={fieldClass} required />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold uppercase tracking-[0.08em] text-[#A5A9B5] mb-1.5">Postal Code <span className="text-[#EF4444]">*</span></label>
+              <input value={form.postalCode} onChange={(e) => updateField("postalCode", e.target.value)} className={fieldClass} required />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold uppercase tracking-[0.08em] text-[#A5A9B5] mb-1.5">Street <span className="text-[#EF4444]">*</span></label>
+            <input value={form.street} onChange={(e) => updateField("street", e.target.value)} className={fieldClass} required />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-semibold uppercase tracking-[0.08em] text-[#A5A9B5] mb-1.5">City <span className="text-[#EF4444]">*</span></label>
+              <input value={form.city} onChange={(e) => updateField("city", e.target.value)} className={fieldClass} required />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold uppercase tracking-[0.08em] text-[#A5A9B5] mb-1.5">State <span className="text-[#EF4444]">*</span></label>
+              <input value={form.state} onChange={(e) => updateField("state", e.target.value)} className={fieldClass} required />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-semibold uppercase tracking-[0.08em] text-[#A5A9B5] mb-1.5">Country <span className="text-[#EF4444]">*</span></label>
+              <input value={form.country} onChange={(e) => updateField("country", e.target.value)} className={fieldClass} required />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold uppercase tracking-[0.08em] text-[#A5A9B5] mb-1.5">Latitude</label>
+              <input value={form.latitude} onChange={(e) => updateField("latitude", e.target.value)} placeholder="Optional" className={fieldClass} />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold uppercase tracking-[0.08em] text-[#A5A9B5] mb-1.5">Longitude</label>
+            <input value={form.longitude} onChange={(e) => updateField("longitude", e.target.value)} placeholder="Optional" className={fieldClass} />
+          </div>
+
+          <label className="flex items-center gap-2 text-sm text-[#A5A9B5]">
+            <input type="checkbox" checked={form.isDefault} onChange={(e) => updateField("isDefault", e.target.checked)} className="h-4 w-4 rounded border-[rgba(255,255,255,0.12)] bg-[#20242D] text-[#5B6CFF]" />
+            Set as default address
+          </label>
+
+          {(localError || submitError) && (
+            <div className="rounded-xl border border-[rgba(239,68,68,0.35)] bg-[rgba(239,68,68,0.08)] px-3 py-2 text-sm text-[#FCA5A5]">
+              {localError ?? submitError}
+            </div>
+          )}
+
+          <div className="flex gap-3 pt-2">
+            <button type="button" onClick={onClose} className="flex-1 h-12 rounded-2xl bg-[#20242D] text-white font-bold">Cancel</button>
+            <button type="submit" disabled={isSubmitting} className="flex-1 h-12 rounded-2xl font-bold text-white disabled:opacity-70" style={{ background:"linear-gradient(135deg,#5B6CFF 0%,#7E57FF 100%)" }}>
+              {isSubmitting ? "Saving..." : initialAddress ? "Save Changes" : "Save Address"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// ─── Address screen ───────────────────────────────────────────────────────────
+
+function AddressScreen({ onBack, toast }: { onBack: () => void; toast: (msg: string, color?: string) => void }) {
+  const { addresses, isLoading, error, refetch, createAddress, updateAddress, deleteAddress } = useAddresses();
+  const [isFormOpen, setIsFormOpen] = useState(false);
+  const [editingAddress, setEditingAddress] = useState<AddressData | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+
+  const openCreateForm = () => {
+    setEditingAddress(null);
+    setSubmitError(null);
+    setIsFormOpen(true);
+  };
+
+  const openEditForm = (address: AddressData) => {
+    setEditingAddress(address);
+    setSubmitError(null);
+    setIsFormOpen(true);
+  };
+
+  const handleSubmit = async (payload: CreateAddressRequest) => {
+    setIsSubmitting(true);
+    setSubmitError(null);
+
+    try {
+      if (editingAddress) {
+        await updateAddress(editingAddress.id, payload);
+        toast("Address updated successfully.", "#22C55E");
+      } else {
+        await createAddress(payload);
+        toast("Address saved successfully.", "#22C55E");
+      }
+      setIsFormOpen(false);
+      setEditingAddress(null);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unable to save address.";
+      setSubmitError(message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    try {
+      await deleteAddress(id);
+      toast("Address removed.", "#EF4444");
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "Unable to delete address.", "#EF4444");
+    }
+  };
+
+  const handleSetAsDefault = async (id: string) => {
+    try {
+      await updateAddress(id, { isDefault: true });
+      toast("Default address updated.", "#5B6CFF");
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "Unable to update default address.", "#EF4444");
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex flex-col gap-4 pb-4 pt-2">
+        <div className="flex items-center gap-4">
+          <button onClick={onBack} className="w-10 h-10 rounded-full bg-[#20242D] flex items-center justify-center active:scale-90 transition-transform">
+            <ArrowLeft size={18} className="text-white" />
+          </button>
+          <h2 className="font-bold text-white text-lg" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>Saved Addresses</h2>
+        </div>
+        <div className="space-y-3">
+          {[1,2,3].map((item) => (
+            <div key={item} className="h-28 rounded-2xl bg-[#171A21] animate-pulse" />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (error && addresses.length === 0) {
+    return (
+      <div className="flex flex-col gap-4 pb-4 pt-2">
+        <div className="flex items-center gap-4">
+          <button onClick={onBack} className="w-10 h-10 rounded-full bg-[#20242D] flex items-center justify-center active:scale-90 transition-transform">
+            <ArrowLeft size={18} className="text-white" />
+          </button>
+          <h2 className="font-bold text-white text-lg" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>Saved Addresses</h2>
+        </div>
+        <div className="rounded-2xl border border-[rgba(239,68,68,0.35)] bg-[rgba(239,68,68,0.08)] p-4 text-center">
+          <p className="text-[#FCA5A5] text-sm">{error}</p>
+          <button onClick={() => refetch()} className="mt-3 text-[#5B6CFF] text-sm font-semibold">Retry</button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-4 pb-4 pt-2">
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex items-center gap-4">
+          <button onClick={onBack} className="w-10 h-10 rounded-full bg-[#20242D] flex items-center justify-center active:scale-90 transition-transform">
+            <ArrowLeft size={18} className="text-white" />
+          </button>
+          <h2 className="font-bold text-white text-lg" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>Saved Addresses</h2>
+        </div>
+        <button onClick={openCreateForm} className="flex items-center gap-2 rounded-xl bg-[#5B6CFF] px-3 py-2 text-xs font-bold text-white active:scale-95 transition-transform">
+          <Plus size={14} /> Add
+        </button>
+      </div>
+
+      {error && (
+        <div className="rounded-xl border border-[rgba(239,68,68,0.35)] bg-[rgba(239,68,68,0.08)] px-3 py-2 text-sm text-[#FCA5A5] flex items-center justify-between gap-3">
+          <span>{error}</span>
+          <button onClick={() => refetch()} className="text-[#5B6CFF] font-semibold">Retry</button>
+        </div>
+      )}
+
+      {addresses.length === 0 ? (
+        <div className="text-center py-12">
+          <MapPin size={40} className="text-[#A5A9B5] mx-auto mb-3 opacity-30" />
+          <p className="text-[#A5A9B5]">No saved addresses yet</p>
+          <button onClick={openCreateForm} className="mt-3 text-[#5B6CFF] text-sm font-semibold">Add your first address</button>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-3">
+          {addresses.map((address) => (
+            <div key={address.id} className="bg-[#171A21] rounded-2xl p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2 mb-1">
+                    <MapPin size={14} className="text-[#5B6CFF] shrink-0" />
+                    <span className="font-bold text-white text-sm">
+                      {address.label || "Address"}
+                    </span>
+                    {address.isDefault && (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-[rgba(245,158,11,0.16)] px-2 py-0.5 text-[10px] font-bold text-[#FBBF24]">
+                        <Star size={10} fill="#FBBF24" stroke="none" /> Default
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[#A5A9B5] text-sm leading-relaxed">
+                    {address.houseNo}, {address.street}
+                  </p>
+                  <p className="text-[#A5A9B5] text-sm leading-relaxed">
+                    {address.city}, {address.state}, {address.country} - {address.postalCode}
+                  </p>
+                  {(address.latitude !== null && address.latitude !== undefined) || (address.longitude !== null && address.longitude !== undefined) ? (
+                    <p className="text-[#A5A9B5] text-[11px] mt-1">
+                      {address.latitude != null ? `Lat: ${address.latitude}` : ""}
+                      {address.latitude != null && address.longitude != null ? " • " : ""}
+                      {address.longitude != null ? `Lng: ${address.longitude}` : ""}
+                    </p>
+                  ) : null}
+                </div>
+                {address.isDefault && <Star size={16} className="text-[#FBBF24] fill-[#FBBF24] shrink-0" />}
+              </div>
+
+              <div className="mt-4 flex flex-wrap gap-2">
+                {!address.isDefault && (
+                  <button onClick={() => handleSetAsDefault(address.id)} className="rounded-xl bg-[rgba(91,108,255,0.12)] px-3 py-1.5 text-xs font-semibold text-[#5B6CFF] active:scale-95 transition-transform">
+                    Set as default
+                  </button>
+                )}
+                <button onClick={() => openEditForm(address)} className="rounded-xl bg-[#20242D] px-3 py-1.5 text-xs font-semibold text-white active:scale-95 transition-transform">
+                  Edit
+                </button>
+                <button onClick={() => handleDelete(address.id)} className="rounded-xl bg-[rgba(239,68,68,0.12)] px-3 py-1.5 text-xs font-semibold text-[#FCA5A5] active:scale-95 transition-transform">
+                  Delete
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <AddressFormModal
+        isOpen={isFormOpen}
+        initialAddress={editingAddress}
+        onClose={() => {
+          setIsFormOpen(false);
+          setEditingAddress(null);
+          setSubmitError(null);
+        }}
+        onSubmit={handleSubmit}
+        isSubmitting={isSubmitting}
+        submitError={submitError}
+      />
+    </div>
+  );
+}
+
 // ─── Bookings screen ──────────────────────────────────────────────────────────
 
 function BookingsScreen({ onNavigate, toast }: { onNavigate: (s: Screen, id?: string) => void; toast: (msg: string, color?: string) => void }) {
@@ -924,7 +1300,7 @@ function ProfileScreen({ onNavigate, toast }: { onNavigate: (s: Screen) => void;
     { label:"Reviews",  value:"9",  action: () => toast("Opening your reviews…", "#F59E0B") },
   ];
   const menuItems = [
-    { icon:"📍", label:"Saved Addresses",   action: () => toast("Manage your saved addresses") },
+    { icon:"📍", label:"Saved Addresses",   action: () => onNavigate("addresses") },
     { icon:"💳", label:"Payment Methods",   action: () => toast("Manage payment methods") },
     { icon:"🔔", label:"Notifications",     action: () => toast("You have 3 new notifications", "#5B6CFF") },
     { icon:"🛡️", label:"Privacy & Security",action: () => toast("Privacy settings opening…") },
@@ -1060,7 +1436,7 @@ export default function App() {
 
   const tabScreens: Screen[] = ["home","explore","bookings","profile"];
   const activeTab = tabScreens.includes(screen) ? screen : prevScreen;
-  const showBottomNav = !["detail","booking"].includes(screen);
+  const showBottomNav = !["detail","booking","addresses"].includes(screen);
 
   return (
     <div className="min-h-screen flex items-center justify-center" style={{ background:"#0A0C0F" }}>
@@ -1107,6 +1483,7 @@ export default function App() {
           )}
           {screen === "bookings" && <BookingsScreen onNavigate={navigate} toast={pushToast} />}
           {screen === "profile"  && <ProfileScreen  onNavigate={navigate} toast={pushToast} />}
+          {screen === "addresses" && <AddressScreen onBack={goBack} toast={pushToast} />}
         </div>
 
         {/* Bottom nav */}
