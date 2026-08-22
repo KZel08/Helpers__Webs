@@ -1,4 +1,7 @@
 import { useState, useEffect } from "react";
+import { useCategories } from "../hooks/useCategories";
+import { useServices, useService } from "../hooks/useServices";
+import type { ServiceData } from "../lib/api";
 import {
   MapPin, Bell, Search, Star, ChevronRight, Home, Grid,
   CalendarCheck, User, Sparkles, Zap, Shield, Clock,
@@ -36,17 +39,6 @@ interface Booking {
 }
 
 // ─── Static data ──────────────────────────────────────────────────────────────
-
-const services = [
-  { id: "cleaning",  icon: "🧹", label: "Cleaning",    color: "#5B6CFF", bg: "rgba(91,108,255,0.15)"  },
-  { id: "plumbing",  icon: "🔧", label: "Plumbing",    color: "#22C55E", bg: "rgba(34,197,94,0.15)"   },
-  { id: "electrical",icon: "⚡", label: "Electrical",  color: "#F59E0B", bg: "rgba(245,158,11,0.15)"  },
-  { id: "salon",     icon: "✂️", label: "Salon",       color: "#EC4899", bg: "rgba(236,72,153,0.15)"  },
-  { id: "painting",  icon: "🎨", label: "Painting",    color: "#8B5CF6", bg: "rgba(139,92,246,0.15)"  },
-  { id: "ac",        icon: "❄️", label: "AC Repair",   color: "#06B6D4", bg: "rgba(6,182,212,0.15)"   },
-  { id: "pest",      icon: "🐛", label: "Pest Control",color: "#EF4444", bg: "rgba(239,68,68,0.15)"   },
-  { id: "more",      icon: "➕", label: "More",        color: "#A5A9B5", bg: "rgba(165,169,181,0.15)" },
-];
 
 const ALL_PROVIDERS: Provider[] = [
   { id:"1", name:"Arjun Mehta",  role:"Deep Cleaning Expert",    rating:4.9, reviews:312, price:"₹599", img:"https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&h=200&fit=crop&auto=format", badge:"Top Rated", tags:["Verified","5+ yrs"], category:"Cleaning"    },
@@ -96,8 +88,6 @@ const liveActivity = [
   { msg:"Rohan rebooked Deep Cleaning for this Sunday",      time:"8m ago", dot:"#5B6CFF" },
 ];
 
-const exploreFilters = ["All","Cleaning","Plumbing","Electrical","Salon","Painting","AC Repair"];
-
 // ─── Toast system ─────────────────────────────────────────────────────────────
 
 interface Toast { id: number; msg: string; color?: string }
@@ -134,6 +124,19 @@ function useCountdown(initialSeconds: number) {
   const m = Math.floor((secs % 3600) / 60);
   const s = secs % 60;
   return h > 0 ? `${h}h ${String(m).padStart(2,"0")}m` : `${String(m).padStart(2,"0")}:${String(s).padStart(2,"0")}`;
+}
+
+function getCategoryStyle(name: string) {
+  const map: Record<string, { icon: string; color: string; bg: string }> = {
+    Cleaning:    { icon: "🧹", color: "#5B6CFF", bg: "rgba(91,108,255,0.15)"  },
+    Plumbing:    { icon: "🔧", color: "#22C55E", bg: "rgba(34,197,94,0.15)"   },
+    Electrical:  { icon: "⚡", color: "#F59E0B", bg: "rgba(245,158,11,0.15)"  },
+    Salon:       { icon: "✂️", color: "#EC4899", bg: "rgba(236,72,153,0.15)"  },
+    Painting:    { icon: "🎨", color: "#8B5CF6", bg: "rgba(139,92,246,0.15)"  },
+    "AC Repair": { icon: "❄️", color: "#06B6D4", bg: "rgba(6,182,212,0.15)"   },
+    "Pest Control": { icon: "🐛", color: "#EF4444", bg: "rgba(239,68,68,0.15)" },
+  };
+  return map[name] || { icon: "➕", color: "#A5A9B5", bg: "rgba(165,169,181,0.15)" };
 }
 
 // ─── Shared sub-components ────────────────────────────────────────────────────
@@ -184,6 +187,37 @@ function ProviderCard({ p, onClick }: { p: Provider; onClick: () => void }) {
   );
 }
 
+function ServiceCard({ s, onClick }: { s: ServiceData; onClick: () => void }) {
+  const title = s.title ?? s.name ?? 'Service';
+  const price = typeof s.price === 'number' ? `₹${s.price.toLocaleString()}` : s.price ?? '—';
+  const helperName = s.helper?.user ? `${s.helper.user.firstName} ${s.helper.user.lastName ?? ''}`.trim() : '';
+  const rating = s.helper?.rating ?? 0;
+
+  return (
+    <button
+      onClick={onClick}
+      className="bg-[#171A21] rounded-2xl p-4 flex items-center gap-4 text-left w-full hover:bg-[#1E2229] active:scale-[0.98] transition-all"
+    >
+      <div className="w-14 h-14 rounded-xl bg-[#20242D] flex items-center justify-center text-white font-bold text-sm shrink-0">
+        {s.media?.[0]?.url ? <img src={s.media[0].url} alt={title} className="w-full h-full object-cover rounded-xl" /> : <span className="text-xl">{(s.category?.name||'S')[0]}</span>}
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 mb-0.5">
+          <span className="font-bold text-white text-sm truncate" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>{title}</span>
+        </div>
+        <p className="text-[#A5A9B5] text-xs mb-1.5">{helperName || s.category?.name}</p>
+        <div className="flex items-center gap-2">
+          <StarRow rating={rating} reviews={0} />
+        </div>
+      </div>
+      <div className="text-right shrink-0">
+        <p className="text-white font-bold text-sm">{price}</p>
+        <p className="text-[#A5A9B5] text-[10px]">per visit</p>
+      </div>
+    </button>
+  );
+}
+
 function FlashDealCard({ deal, onNavigate }: { deal: typeof flashDeals[0]; onNavigate: (s: Screen) => void }) {
   const countdown = useCountdown(deal.endsIn);
   return (
@@ -215,6 +249,7 @@ function FlashDealCard({ deal, onNavigate }: { deal: typeof flashDeals[0]; onNav
 function HomeScreen({ onNavigate, toast }: { onNavigate: (s: Screen, id?: string) => void; toast: (msg: string, color?: string) => void }) {
   const [promoIdx, setPromoIdx] = useState(0);
   const loyaltyPts = 1240;
+  const { categories, isLoading: categoriesLoading, error: categoriesError, refetch } = useCategories();
 
   useEffect(() => {
     const t = setInterval(() => setPromoIdx((i) => (i + 1) % promos.length), 3500);
@@ -307,14 +342,37 @@ function HomeScreen({ onNavigate, toast }: { onNavigate: (s: Screen, id?: string
           <h2 className="font-bold text-white" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>Services</h2>
           <button onClick={() => onNavigate("explore")} className="text-[#5B6CFF] text-sm font-semibold">See all</button>
         </div>
-        <div className="grid grid-cols-4 gap-3">
-          {services.map((s) => (
-            <button key={s.id} onClick={() => onNavigate("explore")} className="flex flex-col items-center gap-2 group">
-              <div className="w-full aspect-square rounded-2xl flex items-center justify-center text-2xl group-active:scale-90 transition-transform" style={{ background:s.bg }}>{s.icon}</div>
-              <span className="text-xs text-[#A5A9B5] font-medium text-center leading-tight">{s.label}</span>
-            </button>
-          ))}
-        </div>
+        {categoriesLoading ? (
+          <div className="grid grid-cols-4 gap-3">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <div key={i} className="flex flex-col items-center gap-2">
+                <div className="w-full aspect-square rounded-2xl bg-[#20242D] animate-pulse" />
+                <div className="h-3 w-12 bg-[#20242D] rounded animate-pulse" />
+              </div>
+            ))}
+          </div>
+        ) : categoriesError ? (
+          <div className="text-center py-8">
+            <p className="text-[#EF4444] text-sm">Failed to load categories</p>
+            <button onClick={() => refetch()} className="mt-2 text-[#5B6CFF] text-sm font-semibold">Retry</button>
+          </div>
+        ) : categories.length === 0 ? (
+          <div className="text-center py-8">
+            <p className="text-[#A5A9B5] text-sm">No categories available</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-4 gap-3">
+            {categories.map((c) => {
+              const style = getCategoryStyle(c.name);
+              return (
+                <button key={c.id} onClick={() => onNavigate("explore")} className="flex flex-col items-center gap-2 group">
+                  <div className="w-full aspect-square rounded-2xl flex items-center justify-center text-2xl group-active:scale-90 transition-transform" style={{ background:style.bg }}>{style.icon}</div>
+                  <span className="text-xs text-[#A5A9B5] font-medium text-center leading-tight">{c.name}</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* Flash Deals */}
@@ -451,18 +509,21 @@ function ExploreScreen({ onNavigate, toast }: { onNavigate: (s: Screen, id?: str
   const [active, setActive] = useState("All");
   const [query, setQuery] = useState("");
   const [showFilter, setShowFilter] = useState(false);
-  const [sortBy, setSortBy] = useState<"rating"|"price">("rating");
+  const [page, setPage] = useState(1);
+  const limit = 8;
+  const { categories } = useCategories();
 
-  const filtered = ALL_PROVIDERS
-    .filter((p) => {
-      const matchCat = active === "All" || p.category === active;
-      const matchQ   = query === "" || p.name.toLowerCase().includes(query.toLowerCase()) || p.role.toLowerCase().includes(query.toLowerCase());
-      return matchCat && matchQ;
-    })
-    .sort((a, b) => sortBy === "rating"
-      ? b.rating - a.rating
-      : parseInt(a.price.replace(/[₹,]/g,"")) - parseInt(b.price.replace(/[₹,]/g,""))
-    );
+  // map active category name to categoryId param
+  const activeCategory = active === 'All' ? undefined : categories.find((c) => c.name === active)?.id;
+
+  const { services, total, isLoading, error, refetch } = useServices({ page, limit, categoryId: activeCategory, search: query || undefined });
+
+  useEffect(() => {
+    // reset page when filters change
+    setPage(1);
+  }, [activeCategory, query]);
+
+  const onRetry = () => refetch();
 
   return (
     <div className="flex flex-col gap-5 pb-4">
@@ -470,7 +531,7 @@ function ExploreScreen({ onNavigate, toast }: { onNavigate: (s: Screen, id?: str
       <div className="flex items-center gap-3 pt-2">
         <div className="flex items-center gap-3 flex-1 bg-[#20242D] rounded-2xl px-4 py-3.5">
           <Search size={18} className="text-[#A5A9B5] shrink-0" />
-          <input className="bg-transparent flex-1 text-white text-sm outline-none placeholder:text-[#A5A9B5]" placeholder="Search services or helpers…" value={query} onChange={(e) => setQuery(e.target.value)} />
+          <input className="bg-transparent flex-1 text-white text-sm outline-none placeholder:text-[#A5A9B5]" placeholder="Search services…" value={query} onChange={(e) => setQuery(e.target.value)} />
           {query.length > 0 && <button onClick={() => setQuery("")} className="text-[#A5A9B5] hover:text-white"><X size={14}/></button>}
         </div>
         <button onClick={() => setShowFilter(!showFilter)} className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 transition-colors ${showFilter ? "bg-[#5B6CFF]" : "bg-[#20242D]"}`}>
@@ -478,38 +539,43 @@ function ExploreScreen({ onNavigate, toast }: { onNavigate: (s: Screen, id?: str
         </button>
       </div>
 
-      {/* Filter panel */}
-      {showFilter && (
-        <div className="bg-[#171A21] rounded-2xl p-4 flex flex-col gap-3">
-          <p className="text-white font-bold text-sm" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>Sort by</p>
-          <div className="flex gap-2">
-            {(["rating","price"] as const).map((s) => (
-              <button key={s} onClick={() => setSortBy(s)} className={`flex-1 py-2 rounded-xl text-sm font-semibold capitalize transition-colors ${sortBy===s?"bg-[#5B6CFF] text-white":"bg-[#20242D] text-[#A5A9B5]"}`}>{s==="rating"?"Top Rated":"Lowest Price"}</button>
-            ))}
-          </div>
-        </div>
-      )}
-
       {/* Filter chips */}
       <div className="flex gap-2 overflow-x-auto pb-1" style={{ scrollbarWidth:"none" }}>
-        {exploreFilters.map((f) => (
+        {["All", ...categories.map((c) => c.name)].map((f) => (
           <button key={f} onClick={() => setActive(f)} className={`shrink-0 px-4 py-2 rounded-full text-sm font-semibold transition-colors ${active===f?"bg-[#5B6CFF] text-white":"bg-[#20242D] text-[#A5A9B5] hover:text-white"}`}>{f}</button>
         ))}
       </div>
 
-      <p className="text-[#A5A9B5] text-sm">{filtered.length} helper{filtered.length!==1?"s":""} found{active!=="All"?` for ${active}`:""}</p>
+      <p className="text-[#A5A9B5] text-sm">{total} service{total!==1?"s":""} found{active!=="All"?` for ${active}`:""}</p>
 
       <div className="flex flex-col gap-3">
-        {filtered.length === 0 ? (
+        {isLoading ? (
           <div className="text-center py-12">
             <Search size={40} className="text-[#A5A9B5] mx-auto mb-3 opacity-30" />
-            <p className="text-[#A5A9B5]">No helpers match your search</p>
+            <p className="text-[#A5A9B5]">Loading services…</p>
+          </div>
+        ) : error ? (
+          <div className="text-center py-8">
+            <p className="text-[#EF4444] text-sm">{error}</p>
+            <button onClick={onRetry} className="mt-2 text-[#5B6CFF] text-sm font-semibold">Retry</button>
+          </div>
+        ) : services.length === 0 ? (
+          <div className="text-center py-12">
+            <Search size={40} className="text-[#A5A9B5] mx-auto mb-3 opacity-30" />
+            <p className="text-[#A5A9B5]">No services match your search</p>
             <button onClick={() => { setQuery(""); setActive("All"); }} className="mt-3 text-[#5B6CFF] text-sm font-semibold">Clear filters</button>
           </div>
         ) : (
-          filtered.map((p) => <ProviderCard key={p.id} p={p} onClick={() => onNavigate("detail", p.id)} />)
+          services.map((s) => <ServiceCard key={s.id} s={s} onClick={() => onNavigate("detail", s.id)} />)
         )}
       </div>
+
+      {/* Pagination / Load more */}
+      {!isLoading && services.length < total && (
+        <div className="flex justify-center mt-3">
+          <button onClick={() => setPage((p) => p + 1)} className="px-4 py-2 rounded-xl bg-[#5B6CFF] text-white font-semibold">Load more</button>
+        </div>
+      )}
     </div>
   );
 }
@@ -517,42 +583,93 @@ function ExploreScreen({ onNavigate, toast }: { onNavigate: (s: Screen, id?: str
 // ─── Detail screen ────────────────────────────────────────────────────────────
 
 function DetailScreen({ providerId, onBack, onBook, toast }: { providerId: string; onBack: () => void; onBook: () => void; toast: (msg: string, color?: string) => void }) {
-  const p = ALL_PROVIDERS.find((x) => x.id === providerId) ?? ALL_PROVIDERS[0];
+  const { service, isLoading, error, refetch } = useService(providerId);
   const [liked, setLiked] = useState(false);
+
+  const onRetry = () => refetch();
+
+  if (isLoading) {
+    return (
+      <div className="flex flex-col pb-4">
+        <div className="relative -mx-5 h-56 bg-[#20242D] animate-pulse" />
+        <div className="p-4">
+          <div className="h-6 bg-[#20242D] rounded w-3/4 mb-3 animate-pulse" />
+          <div className="h-4 bg-[#20242D] rounded w-1/2 mb-3 animate-pulse" />
+          <div className="space-y-2">
+            <div className="h-12 bg-[#20242D] rounded animate-pulse" />
+            <div className="h-12 bg-[#20242D] rounded animate-pulse" />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="text-center py-12">
+        <p className="text-[#EF4444] text-sm">{error}</p>
+        <div className="mt-3 flex justify-center gap-2">
+          <button onClick={onRetry} className="text-[#5B6CFF] text-sm font-semibold">Retry</button>
+          <button onClick={onBack} className="text-[#A5A9B5] text-sm">Back</button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!service) {
+    return (
+      <div className="text-center py-12">
+        <Search size={40} className="text-[#A5A9B5] mx-auto mb-3 opacity-30" />
+        <p className="text-[#A5A9B5]">Service not found</p>
+        <button onClick={onBack} className="mt-3 text-[#5B6CFF] text-sm font-semibold">Back</button>
+      </div>
+    );
+  }
+
+  const name = service.title ?? 'Service';
+  const subtitle = service.category?.name ?? 'Service details';
+  const price = typeof service.price === 'number' ? `₹${service.price.toLocaleString()}` : 'Price available on request';
+  const rating = typeof service.helper?.rating === 'number' ? `${service.helper.rating.toFixed(1)}★` : '—';
+  const helperName = service.helper?.user ? `${service.helper.user.firstName} ${service.helper.user.lastName ?? ''}`.trim() : '';
+  const helperInfoAvailable = Boolean(helperName || (typeof service.helper?.rating === 'number'));
+  const description = service.description?.trim() || 'No description available.';
 
   return (
     <div className="flex flex-col pb-4">
-      {/* Hero */}
       <div className="relative -mx-5 h-56 bg-[#20242D]">
-        <img src={p.img.replace("w=200&h=200","w=480&h=224")} alt={p.name} className="w-full h-full object-cover object-top" />
-        <div className="absolute inset-0" style={{ background:"linear-gradient(to bottom,rgba(15,17,21,0.3) 0%,rgba(15,17,21,0.85) 100%)" }} />
+        {service.media?.[0]?.url ? (
+          <>
+            <img src={service.media[0].url} alt={name} className="w-full h-full object-cover object-top" />
+            <div className="absolute inset-0" style={{ background:"linear-gradient(to bottom,rgba(15,17,21,0.3) 0%,rgba(15,17,21,0.85) 100%)" }} />
+          </>
+        ) : (
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(91,108,255,0.35),_transparent_55%)]" />
+        )}
         <button onClick={onBack} className="absolute top-4 left-5 w-10 h-10 rounded-full bg-[rgba(15,17,21,0.6)] backdrop-blur-sm flex items-center justify-center active:scale-90 transition-transform">
           <ArrowLeft size={18} className="text-white" />
         </button>
-        <button onClick={() => { setLiked(!liked); if(!liked) toast(`${p.name} saved to favourites ❤️`, "#EF4444"); }} className="absolute top-4 right-5 w-10 h-10 rounded-full bg-[rgba(15,17,21,0.6)] backdrop-blur-sm flex items-center justify-center active:scale-90 transition-transform">
+        <button onClick={() => { setLiked(!liked); if(!liked) toast(`${name} saved to favourites ❤️`, "#EF4444"); }} className="absolute top-4 right-5 w-10 h-10 rounded-full bg-[rgba(15,17,21,0.6)] backdrop-blur-sm flex items-center justify-center active:scale-90 transition-transform">
           <Heart size={18} fill={liked?"#EF4444":"none"} className={liked?"text-[#EF4444]":"text-white"} />
         </button>
       </div>
 
       <div className="flex flex-col gap-5 pt-5">
-        {/* Name & price */}
         <div className="flex items-start justify-between">
           <div>
-            <h2 className="text-xl font-bold text-white" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>{p.name}</h2>
-            <p className="text-[#A5A9B5] text-sm mt-0.5">{p.role}</p>
+            <h2 className="text-xl font-bold text-white" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>{name}</h2>
+            <p className="text-[#A5A9B5] text-sm mt-0.5">{service.description ?? subtitle}</p>
           </div>
           <div className="text-right">
-            <p className="text-2xl font-bold text-white">{p.price}</p>
-            <p className="text-[#A5A9B5] text-xs">per visit</p>
+            <p className="text-2xl font-bold text-white">{price}</p>
+            <p className="text-[#A5A9B5] text-xs">{service.priceType ?? 'per visit'}</p>
           </div>
         </div>
 
-        {/* Stats */}
         <div className="grid grid-cols-3 gap-3">
           {[
-            { label:"Rating",     value:`${p.rating}★`, color:"#F59E0B" },
-            { label:"Reviews",    value:`${p.reviews}+`, color:"#5B6CFF" },
-            { label:"Experience", value:p.tags[1]??"3+ yrs", color:"#22C55E" },
+            { label:"Rating", value:rating, color:"#F59E0B" },
+            { label:"Category", value:service.category?.name ?? '—', color:"#5B6CFF" },
+            { label:"Duration", value:service.duration ? `${service.duration}m` : '—', color:"#22C55E" },
           ].map(({ label, value, color }) => (
             <div key={label} className="bg-[#20242D] rounded-xl p-3 text-center">
               <p className="font-bold text-base" style={{ color }}>{value}</p>
@@ -561,46 +678,36 @@ function DetailScreen({ providerId, onBack, onBook, toast }: { providerId: strin
           ))}
         </div>
 
-        {/* Tags */}
-        <div className="flex gap-2 flex-wrap">
-          {p.tags.map((t) => (
-            <span key={t} className="flex items-center gap-1 text-xs font-semibold text-[#5B6CFF] bg-[rgba(91,108,255,0.15)] px-3 py-1.5 rounded-full">
-              <CheckCircle2 size={11} />{t}
-            </span>
-          ))}
-        </div>
+        {helperInfoAvailable ? (
+          <div className="bg-[#171A21] rounded-2xl p-4">
+            <h3 className="font-bold text-white mb-2" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>Helper</h3>
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-white font-semibold">{helperName || 'Helper details available'}</p>
+                <p className="text-[#A5A9B5] text-sm">{service.category?.name ?? 'Service'} provider</p>
+              </div>
+              {typeof service.helper?.rating === 'number' && (
+                <div className="flex items-center gap-1 text-[#F59E0B] text-sm font-semibold">
+                  <Star size={12} fill="#F59E0B" stroke="none" />
+                  {service.helper.rating.toFixed(1)}
+                </div>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className="bg-[#171A21] rounded-2xl p-4">
+            <h3 className="font-bold text-white mb-1" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>Helper information unavailable</h3>
+            <p className="text-[#A5A9B5] text-sm">This service is currently missing helper details.</p>
+          </div>
+        )}
 
-        {/* About */}
         <div className="bg-[#171A21] rounded-2xl p-4">
           <h3 className="font-bold text-white mb-2" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>About</h3>
-          <p className="text-[#A5A9B5] text-sm leading-relaxed">{p.name} is a background-verified professional with hands-on experience in {p.role.toLowerCase()}. Known for punctuality, quality workmanship, and reliable service.</p>
+          <p className="text-[#A5A9B5] text-sm leading-relaxed">{description}</p>
         </div>
 
-        {/* Services offered */}
-        <div>
-          <h3 className="font-bold text-white mb-3" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>Services Offered</h3>
-          <div className="flex flex-col gap-2">
-            {(["Standard Visit","Deep / Premium","Emergency / Same Day"] as const).map((s, i) => {
-              const base = parseInt(p.price.replace(/[₹,]/g,""));
-              return (
-                <button key={s} onClick={() => onBook()} className="bg-[#171A21] rounded-xl px-4 py-3 flex items-center justify-between hover:bg-[#1E2229] active:scale-[0.98] transition-all">
-                  <span className="text-sm text-white">{s}</span>
-                  <span className="text-sm font-bold text-[#5B6CFF]">₹{(base + i*150).toLocaleString()}</span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Actions */}
-        <div className="flex gap-3 mt-2">
-          <button onClick={() => toast(`Calling ${p.name}…`, "#22C55E")} className="w-12 h-12 rounded-2xl bg-[#20242D] flex items-center justify-center shrink-0 active:scale-90 transition-transform">
-            <Phone size={18} className="text-[#A5A9B5]" />
-          </button>
-          <button onClick={() => toast(`Opening chat with ${p.name}…`, "#5B6CFF")} className="w-12 h-12 rounded-2xl bg-[#20242D] flex items-center justify-center shrink-0 active:scale-90 transition-transform">
-            <MessageSquare size={18} className="text-[#A5A9B5]" />
-          </button>
-          <button onClick={onBook} className="flex-1 h-12 rounded-2xl font-bold text-white flex items-center justify-center gap-2 active:opacity-80 transition-opacity" style={{ background:"linear-gradient(135deg,#5B6CFF 0%,#7E57FF 100%)" }}>
+        <div className="mt-2">
+          <button onClick={onBook} className="w-full h-12 rounded-2xl font-bold text-white flex items-center justify-center gap-2 active:opacity-80 transition-opacity" style={{ background:"linear-gradient(135deg,#5B6CFF 0%,#7E57FF 100%)" }}>
             Book Now
           </button>
         </div>

@@ -98,6 +98,54 @@ export interface UserData {
   lastName: string;
   role: string;
   isVerified: boolean;
+  avatarUrl?: string | null;
+  phone?: string | null;
+  addresses?: AddressData[];
+}
+
+// ─── User / Address Types ───────────────────────────────────────────────────
+
+export interface AddressData {
+  id: string;
+  userId: string;
+  label?: string | null;
+  houseNo: string;
+  street: string;
+  city: string;
+  state: string;
+  country: string;
+  postalCode: string;
+  latitude?: number | null;
+  longitude?: number | null;
+  isDefault: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateAddressRequest {
+  label?: string;
+  houseNo: string;
+  street: string;
+  city: string;
+  state: string;
+  country: string;
+  postalCode: string;
+  latitude?: number;
+  longitude?: number;
+  isDefault?: boolean;
+}
+
+export type UpdateAddressRequest = Partial<CreateAddressRequest>;
+
+export interface RegisterResponse {
+  user: UserData;
+  message: string;
+}
+
+export interface VerifyEmailResponse {
+  user: UserData;
+  accessToken: string;
+  refreshToken: string;
 }
 
 export interface AuthResponse {
@@ -112,12 +160,17 @@ export const authApi = {
     firstName: string;
     lastName: string;
     password: string;
-    role?: string;
     phone?: string;
-  }) => apiFetch<AuthResponse>('/auth/register', {
+  }) => apiFetch<RegisterResponse>('/auth/register', {
     method: 'POST',
     body: JSON.stringify(body),
   }),
+
+  verifyEmail: (email: string, otp: string) =>
+    apiFetch<VerifyEmailResponse>('/auth/verify-email', {
+      method: 'POST',
+      body: JSON.stringify({ email, otp }),
+    }),
 
   login: (body: { email: string; password: string }) =>
     apiFetch<AuthResponse>('/auth/login', {
@@ -149,6 +202,21 @@ export const authApi = {
   getMe: () => apiFetch<UserData>('/auth/me'),
 };
 
+// ─── Users API ─────────────────────────────────────────────────────────────
+
+export const usersApi = {
+  getMe: () => apiFetch<UserData>('/users/me'),
+  updateProfile: (body: unknown) => apiFetch<UserData>('/users/profile', { method: 'PUT', body: JSON.stringify(body) }),
+  deleteAccount: () => apiFetch<{ message: string }>('/users', { method: 'DELETE' }),
+
+  // Addresses
+  listAddresses: () => apiFetch<AddressData[]>('/users/addresses'),
+  getAddress: (id: string) => apiFetch<AddressData>(`/users/addresses/${id}`),
+  createAddress: (body: CreateAddressRequest) => apiFetch<AddressData>('/users/addresses', { method: 'POST', body: JSON.stringify(body) }),
+  updateAddress: (id: string, body: UpdateAddressRequest) => apiFetch<AddressData>(`/users/addresses/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
+  deleteAddress: (id: string) => apiFetch<{ message: string }>(`/users/addresses/${id}`, { method: 'DELETE' }),
+};
+
 // ─── Services API ──────────────────────────────────────────────────────────
 
 export interface ServiceData {
@@ -165,6 +233,7 @@ export interface ServiceData {
     rating: number;
     user: { firstName: string; lastName: string; avatarUrl?: string };
   };
+  media?: Array<{ id: string; url: string; type: string }>;
 }
 
 export const servicesApi = {
@@ -231,6 +300,7 @@ export interface CategoryData {
 
 export const categoriesApi = {
   list: () => apiFetch<CategoryData[]>('/categories'),
+  get: (id: string) => apiFetch<CategoryData>(`/categories/${id}`),
 };
 
 // ─── Notifications API ─────────────────────────────────────────────────────

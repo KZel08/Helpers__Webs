@@ -23,8 +23,8 @@ interface AuthContextValue extends AuthState {
     firstName: string;
     lastName: string;
     password: string;
-    role?: string;
   }) => Promise<void>;
+  verifyEmail: (email: string, otp: string) => Promise<void>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
 }
@@ -75,15 +75,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       firstName: string;
       lastName: string;
       password: string;
-      role?: string;
     }) => {
       const res = await authApi.register(data);
-      tokenStorage.setAccess(res.accessToken);
-      tokenStorage.setRefresh(res.refreshToken);
       setUser(res.user);
     },
     [],
   );
+
+  const verifyEmail = useCallback(async (email: string, otp: string) => {
+    const res = await authApi.verifyEmail(email, otp);
+    tokenStorage.setAccess(res.accessToken);
+    tokenStorage.setRefresh(res.refreshToken);
+    setUser(res.user);
+  }, []);
 
   const logout = useCallback(async () => {
     try {
@@ -106,7 +110,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ ...state, login, register, logout, refreshUser }}>
+    <AuthContext.Provider value={{ ...state, login, register, verifyEmail, logout, refreshUser }}>
       {children}
     </AuthContext.Provider>
   );
