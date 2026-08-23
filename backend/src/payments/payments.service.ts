@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as crypto from 'crypto';
+import Razorpay from 'razorpay';
 import { PaymentsRepository } from './payments.repository';
 import { BookingsRepository } from '../bookings/bookings.repository';
 import { CreatePaymentDto } from './dto/create-payment.dto';
@@ -24,6 +25,16 @@ export class PaymentsService {
   ) {}
 
   async createOrder(userId: string, dto: CreatePaymentDto) {
+    // Read credentials first — needed by both the idempotency path and the new-order path.
+    const razorpayKey = this.configService.get<string>('RAZORPAY_KEY');
+    const razorpaySecret = this.configService.get<string>('RAZORPAY_SECRET');
+
+    if (!razorpayKey || !razorpaySecret) {
+      throw new BadRequestException(
+        'Razorpay payment configuration is unavailable',
+      );
+    }
+
     const booking = await this.bookingsRepo.findById(dto.bookingId);
     if (!booking) throw new NotFoundException('Booking not found');
     if (booking.customerId !== userId) {
@@ -31,7 +42,9 @@ export class PaymentsService {
     }
 
     if (booking.status === BookingStatus.CANCELLED) {
-      throw new BadRequestException('Cannot create payment for a cancelled booking');
+      throw new BadRequestException(
+        'Cannot create payment for a cancelled booking',
+      );
     }
 
     const existing = await this.paymentsRepo.findByBookingId(dto.bookingId);
@@ -41,35 +54,34 @@ export class PaymentsService {
       }
 
       if (existing.status === PaymentStatus.PENDING) {
+        if (!existing.transactionId) {
+          throw new BadRequestException(
+            'Existing payment is missing its Razorpay order ID',
+          );
+        }
+
         return {
           payment: existing,
-          orderId: existing.transactionId ?? `order_stub_${Date.now()}`,
+          orderId: existing.transactionId,
           amount: existing.amount,
           currency: 'INR',
-          keyId: this.configService.get<string>('RAZORPAY_KEY') ?? 'rzp_test_stub',
+          keyId: razorpayKey,
         };
       }
     }
 
-    const razorpayKey = this.configService.get<string>('RAZORPAY_KEY');
-    const razorpaySecret = this.configService.get<string>('RAZORPAY_SECRET');
+    // Create a real Razorpay order. Do NOT persist the local Payment record
+    // until the SDK call succeeds, so a failed order leaves no orphan record.
+    const razorpay = new Razorpay({
+      key_id: razorpayKey,
+      key_secret: razorpaySecret,
+    });
 
-    let orderId: string;
-    let providerOrderId: string;
-
-    if (razorpayKey && razorpaySecret) {
-      // TODO: real Razorpay SDK call
-      // const razorpay = new Razorpay({ key_id: razorpayKey, key_secret: razorpaySecret });
-      // const order = await razorpay.orders.create({ amount: booking.totalAmount * 100, currency: 'INR' });
-      // orderId = order.id;
-      this.logger.log('[DEV] Razorpay SDK would be called here');
-      orderId = `order_stub_${Date.now()}`;
-      providerOrderId = orderId;
-    } else {
-      this.logger.warn('[DEV] RAZORPAY_KEY not set — using stub order ID');
-      orderId = `order_stub_${Date.now()}`;
-      providerOrderId = orderId;
-    }
+    const order = await razorpay.orders.create({
+      amount: booking.totalAmount * 100,
+      currency: 'INR',
+      receipt: booking.id,
+    });
 
     const payment = await this.paymentsRepo.create({
       bookingId: dto.bookingId,
@@ -77,20 +89,22 @@ export class PaymentsService {
       method: dto.method,
       status: PaymentStatus.PENDING,
       provider: 'razorpay',
-      transactionId: providerOrderId,
+      transactionId: order.id,
     });
 
     return {
       payment,
-      orderId,
+      orderId: order.id,
       amount: booking.totalAmount,
       currency: 'INR',
-      keyId: razorpayKey ?? 'rzp_test_stub',
+      keyId: razorpayKey,
     };
   }
 
   async verifyPayment(userId: string, dto: VerifyPaymentDto) {
-    const payment = await this.paymentsRepo.findByProviderOrderId(dto.razorpayOrderId);
+    const payment = await this.paymentsRepo.findByProviderOrderId(
+      dto.razorpayOrderId,
+    );
 
     if (!payment) {
       throw new NotFoundException('Payment not found for this Razorpay order');
@@ -112,7 +126,9 @@ export class PaymentsService {
         throw new BadRequestException('Payment signature verification failed');
       }
     } else {
-      this.logger.warn('[DEV] Skipping Razorpay signature verification — key not set');
+      this.logger.warn(
+        '[DEV] Skipping Razorpay signature verification — key not set',
+      );
     }
 
     const updated = await this.paymentsRepo.update(payment.id, {
