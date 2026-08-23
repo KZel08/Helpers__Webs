@@ -3,6 +3,7 @@ import { useCategories } from "../hooks/useCategories";
 import { useServices, useService } from "../hooks/useServices";
 import { useAddresses } from "../hooks/useAddresses";
 import { useBookings } from "../hooks/useBookings";
+import { useAuth } from "../contexts/AuthContext";
 import type { ServiceData, AddressData, CreateAddressRequest, UpdateAddressRequest, BookingData } from "../lib/api";
 import { bookingsApi, paymentsApi } from "../lib/api";
 import { loadRazorpayScript } from "../lib/razorpay";
@@ -264,6 +265,77 @@ function FlashDealCard({ deal, onNavigate }: { deal: typeof flashDeals[0]; onNav
         </div>
       </div>
     </button>
+  );
+}
+
+// ─── Login screen ──────────────────────────────────────────────────────────────
+
+function LoginScreen({ onLogin, toast }: { onLogin: (email: string, password: string) => Promise<void>; toast: (msg: string, color?: string) => void }) {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (isSubmitting) return;
+    setIsSubmitting(true);
+    try {
+      await onLogin(email, password);
+      setEmail("");
+      setPassword("");
+      toast("Welcome back!", "#22C55E");
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "Login failed. Please try again.", "#EF4444");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="flex flex-col gap-5 pb-4">
+      <div className="pt-8 flex flex-col items-center gap-2">
+        <div className="w-16 h-16 rounded-2xl flex items-center justify-center text-white font-bold text-2xl" style={{ background:"linear-gradient(135deg,#5B6CFF,#7E57FF)" }}>H</div>
+        <h1 className="text-2xl font-bold text-white" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>Helpers</h1>
+        <p className="text-[#A5A9B5] text-sm">Sign in to continue</p>
+      </div>
+
+      <form onSubmit={handleSubmit} className="flex flex-col gap-4 mt-4">
+        <div className="flex flex-col gap-2">
+          <label className="text-xs font-semibold uppercase tracking-[0.08em] text-[#A5A9B5]">Email</label>
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="you@example.com"
+            required
+            className="w-full rounded-xl border border-[rgba(255,255,255,0.08)] bg-[#20242D] px-4 py-3 text-sm text-white outline-none placeholder:text-[#A5A9B5] focus:border-[#5B6CFF]"
+          />
+        </div>
+        <div className="flex flex-col gap-2">
+          <label className="text-xs font-semibold uppercase tracking-[0.08em] text-[#A5A9B5]">Password</label>
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="••••••••"
+            required
+            className="w-full rounded-xl border border-[rgba(255,255,255,0.08)] bg-[#20242D] px-4 py-3 text-sm text-white outline-none placeholder:text-[#A5A9B5] focus:border-[#5B6CFF]"
+          />
+        </div>
+        <button
+          type="submit"
+          disabled={isSubmitting}
+          className="w-full h-12 rounded-2xl font-bold text-white flex items-center justify-center gap-2 active:opacity-80 transition-opacity disabled:opacity-60"
+          style={{ background:"linear-gradient(135deg,#5B6CFF 0%,#7E57FF 100%)" }}
+        >
+          {isSubmitting ? "Signing in…" : "Sign In"}
+        </button>
+      </form>
+
+      <p className="text-center text-[#A5A9B5] text-xs mt-2">
+        Demo: use any registered email / password
+      </p>
+    </div>
   );
 }
 
@@ -756,6 +828,7 @@ function BookingScreen({
   onNavigate: (s: Screen, id?: string) => void;
 }) {
   const { addresses, isLoading: addressesLoading, error: addressesError, refetch } = useAddresses();
+  const { service, isLoading: serviceLoading, error: serviceError, refetch: refetchService } = useService(serviceId);
   const [qty, setQty] = useState(1);
   const [selectedDate, setSelectedDate] = useState("12 Jul");
   const [selectedTime, setSelectedTime] = useState("10:00 AM");
@@ -767,10 +840,9 @@ function BookingScreen({
   const dates = ["11 Jul","12 Jul","13 Jul","14 Jul","15 Jul"];
   const times = ["08:00 AM","10:00 AM","12:00 PM","2:00 PM","4:00 PM","6:00 PM"];
 
-  // Visual price summary (frontend-only; backend uses service.price as authoritative amount)
-  const DISPLAY_BASE = 499; // placeholder display price when no mock data available
+  const servicePrice = typeof service?.price === "number" ? service.price : 0;
   const discount = promoApplied ? 180 : 0;
-  const displayTotal = Math.max(0, DISPLAY_BASE * qty + 49 - discount);
+  const displayTotal = Math.max(0, servicePrice * qty + 49 - discount);
 
   const selectedAddress = addresses.find((a) => a.id === selectedAddressId) ?? null;
 
@@ -933,21 +1005,37 @@ function BookingScreen({
       {/* Price summary (display only — actual booking amount set by backend) */}
       <div className="bg-[#171A21] rounded-2xl p-4 flex flex-col gap-3">
         <h3 className="font-bold text-white" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>Estimated Summary</h3>
-        {[
-          { label:`Service × ${qty}`, value:`₹${(DISPLAY_BASE*qty).toLocaleString()}`, green:false },
-          { label:"Platform fee",     value:"₹49",  green:false },
-          ...(promoApplied ? [{ label:"Discount (FIRST30)", value:"−₹180", green:true }] : []),
-        ].map(({ label, value, green }) => (
-          <div key={label} className="flex justify-between text-sm">
-            <span className="text-[#A5A9B5]">{label}</span>
-            <span className={green?"text-[#22C55E] font-semibold":"text-white"}>{value}</span>
+        {serviceLoading ? (
+          <div className="space-y-2">
+            <div className="h-4 bg-[#20242D] rounded w-3/4 animate-pulse" />
+            <div className="h-4 bg-[#20242D] rounded w-1/2 animate-pulse" />
           </div>
-        ))}
-        <div className="border-t border-[rgba(255,255,255,0.08)] pt-3 flex justify-between">
-          <span className="font-bold text-white">Estimated Total</span>
-          <span className="font-bold text-white text-lg">₹{displayTotal.toLocaleString()}</span>
-        </div>
-        <p className="text-[#A5A9B5] text-[10px] mt-1">Final amount determined by service pricing at booking time.</p>
+        ) : serviceError ? (
+          <div>
+            <p className="text-[#EF4444] text-sm mb-2">{serviceError}</p>
+            <button onClick={refetchService} className="text-[#5B6CFF] text-sm font-semibold">Retry</button>
+          </div>
+        ) : servicePrice > 0 ? (
+          <>
+            {[
+              { label:`Service × ${qty}`, value:`₹${(servicePrice * qty).toLocaleString()}`, green:false },
+              { label:"Platform fee",     value:"₹49",  green:false },
+              ...(promoApplied ? [{ label:"Discount (FIRST30)", value:"−₹180", green:true }] : []),
+            ].map(({ label, value, green }) => (
+              <div key={label} className="flex justify-between text-sm">
+                <span className="text-[#A5A9B5]">{label}</span>
+                <span className={green?"text-[#22C55E] font-semibold":"text-white"}>{value}</span>
+              </div>
+            ))}
+            <div className="border-t border-[rgba(255,255,255,0.08)] pt-3 flex justify-between">
+              <span className="font-bold text-white">Estimated Total</span>
+              <span className="font-bold text-white text-lg">₹{displayTotal.toLocaleString()}</span>
+            </div>
+            <p className="text-[#A5A9B5] text-[10px] mt-1">Final amount determined by service pricing at booking time.</p>
+          </>
+        ) : (
+          <p className="text-[#A5A9B5] text-sm">Price information unavailable</p>
+        )}
       </div>
 
       {/* Confirm */}
@@ -1445,7 +1533,7 @@ function BookingCard({
       {/* Payment status badge */}
       {booking.payment?.status && (
         <div className="flex items-center gap-1.5 text-xs text-[#A5A9B5]">
-          <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: booking.payment.status === "PAID" ? "#22C55E" : "#F59E0B" }} />
+          <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: booking.payment.status === "SUCCESS" ? "#22C55E" : "#F59E0B" }} />
           <span>Payment: {booking.payment.status}</span>
         </div>
       )}
@@ -1915,6 +2003,9 @@ function BookingDetailsScreen({
 // ─── Profile screen ───────────────────────────────────────────────────────────
 
 function ProfileScreen({ onNavigate, toast }: { onNavigate: (s: Screen) => void; toast: (msg: string, color?: string) => void }) {
+  const { user } = useAuth();
+  const fullName = user ? `${user.firstName} ${user.lastName}`.trim() : "";
+  const initial = fullName ? fullName.charAt(0).toUpperCase() : "?";
   const stats = [
     { label:"Bookings", value:"14", action: () => onNavigate("bookings") },
     { label:"Saved",    value:"6",  action: () => toast("Opening saved helpers…", "#5B6CFF") },
@@ -1934,14 +2025,14 @@ function ProfileScreen({ onNavigate, toast }: { onNavigate: (s: Screen) => void;
     <div className="flex flex-col gap-5 pb-4">
       <div className="pt-4 flex flex-col items-center gap-3">
         <div className="relative">
-          <div className="w-24 h-24 rounded-full bg-gradient-to-br from-[#5B6CFF] to-[#7E57FF] flex items-center justify-center text-3xl font-bold text-white">R</div>
+          <div className="w-24 h-24 rounded-full bg-gradient-to-br from-[#5B6CFF] to-[#7E57FF] flex items-center justify-center text-3xl font-bold text-white">{initial}</div>
           <button onClick={() => toast("Photo update coming soon!")} className="absolute bottom-0 right-0 w-7 h-7 rounded-full bg-[#5B6CFF] border-2 border-[#0F1115] flex items-center justify-center active:scale-90 transition-transform">
             <Plus size={13} className="text-white" />
           </button>
         </div>
         <div className="text-center">
-          <h2 className="text-xl font-bold text-white" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>Rahul Verma</h2>
-          <p className="text-[#A5A9B5] text-sm">rahul.verma@gmail.com</p>
+          <h2 className="text-xl font-bold text-white" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>{fullName || "User"}</h2>
+          <p className="text-[#A5A9B5] text-sm">{user?.email ?? ""}</p>
         </div>
       </div>
 
@@ -2055,6 +2146,8 @@ export default function App() {
   const [toasts, setToasts]           = useState<{ id:number; msg:string; color?:string }[]>([]);
   const toastId = useState(0);
 
+  const { isAuthenticated, isLoading, login } = useAuth();
+
   const pushToast = (msg: string, color?: string) => {
     const id = ++toastId[0];
     setToasts((ts) => [...ts, { id, msg, color }]);
@@ -2083,87 +2176,99 @@ export default function App() {
     <div className="min-h-screen flex items-center justify-center" style={{ background:"#0A0C0F" }}>
       <div className="relative flex flex-col overflow-hidden shadow-2xl" style={{ width:"min(100vw,390px)", height:"min(100vh,844px)", background:"#0F1115", borderRadius:"clamp(0px,2.5rem,2.5rem)" }}>
 
-        {/* Status bar */}
-        <div className="flex items-center justify-between px-6 pt-3 pb-1 shrink-0">
-          <span className="text-white text-xs font-semibold">9:41</span>
-          <div className="flex items-center gap-1.5">
-            <div className="flex gap-0.5 items-end h-3">
-              {[2,3,4,4].map((h,i) => <div key={i} className="w-1 rounded-sm bg-white" style={{ height:`${h*3}px` }} />)}
-            </div>
-            <div className="w-4 h-3 rounded-sm border border-white flex items-center px-0.5">
-              <div className="flex-1 h-1.5 bg-white rounded-sm" />
-            </div>
-          </div>
-        </div>
-
-        {/* Toast overlay */}
-        <ToastContainer toasts={toasts} dismiss={dismissToast} />
-
-        {/* Screen content */}
-        <div className="flex-1 overflow-y-auto px-5 min-h-0" style={{ scrollbarWidth:"none" }}>
-          {screen === "home" && <HomeScreen onNavigate={navigate} toast={pushToast} />}
-          {screen === "explore" && <ExploreScreen onNavigate={navigate} toast={pushToast} />}
-          {screen === "detail" && (
-            <DetailScreen
-              providerId={detailId}
-              onBack={goBack}
-              onBook={() => navigate("booking")}
-              toast={pushToast}
-            />
-          )}
-          {screen === "booking" && (
-            <BookingScreen
-              serviceId={detailId}
-              onBack={goBack}
-              onBookingCreated={(booking) => {
-                setConfirmData(booking);
-              }}
-              toast={pushToast}
-              onNavigate={navigate}
-            />
-          )}
-          {screen === "bookings" && (
-            <BookingsScreen
-              onNavigate={navigate}
-              onViewDetails={openBookingDetail}
-              toast={pushToast}
-            />
-          )}
-          {screen === "booking-detail" && bookingDetailId && (
-            <BookingDetailsScreen
-              bookingId={bookingDetailId}
-              onBack={goBack}
-              toast={pushToast}
-            />
-          )}
-          {screen === "profile"  && <ProfileScreen  onNavigate={navigate} toast={pushToast} />}
-          {screen === "addresses" && <AddressScreen onBack={goBack} toast={pushToast} />}
-        </div>
-
-        {/* Bottom nav */}
-        {showBottomNav && (
-          <div className="shrink-0 px-4 pb-4 pt-2" style={{ background:"linear-gradient(to top,#0F1115 80%,transparent)", borderTop:"1px solid rgba(255,255,255,0.06)" }}>
-            <div className="flex items-center justify-around">
-              {navItems.map(({ id, icon:Icon, label }) => {
-                const isActive = activeTab === id;
-                return (
-                  <button key={id} onClick={() => navigate(id)} className="flex flex-col items-center gap-1 px-4 py-2 relative">
-                    {isActive && <span className="absolute -top-1 w-8 h-0.5 rounded-full" style={{ background:"#5B6CFF" }} />}
-                    <Icon size={22} className={isActive?"text-[#5B6CFF]":"text-[#A5A9B5]"} strokeWidth={isActive?2.5:1.8} />
-                    <span className={`text-[10px] font-semibold ${isActive?"text-[#5B6CFF]":"text-[#A5A9B5]"}`}>{label}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        {/* Booking confirmation modal */}
-        {confirmData && (
-          <ConfirmModal
-            booking={confirmData}
-            onClose={() => { setConfirmData(null); navigate("bookings"); }}
+        {!isAuthenticated && !isLoading ? (
+          <LoginScreen
+            onLogin={async (email: string, password: string) => {
+              await login(email, password);
+              setScreen("home");
+            }}
+            toast={pushToast}
           />
+        ) : (
+          <>
+            {/* Status bar */}
+            <div className="flex items-center justify-between px-6 pt-3 pb-1 shrink-0">
+              <span className="text-white text-xs font-semibold">9:41</span>
+              <div className="flex items-center gap-1.5">
+                <div className="flex gap-0.5 items-end h-3">
+                  {[2,3,4,4].map((h,i) => <div key={i} className="w-1 rounded-sm bg-white" style={{ height:`${h*3}px` }} />)}
+                </div>
+                <div className="w-4 h-3 rounded-sm border border-white flex items-center px-0.5">
+                  <div className="flex-1 h-1.5 bg-white rounded-sm" />
+                </div>
+              </div>
+            </div>
+
+            {/* Toast overlay */}
+            <ToastContainer toasts={toasts} dismiss={dismissToast} />
+
+            {/* Screen content */}
+            <div className="flex-1 overflow-y-auto px-5 min-h-0" style={{ scrollbarWidth:"none" }}>
+              {screen === "home" && <HomeScreen onNavigate={navigate} toast={pushToast} />}
+              {screen === "explore" && <ExploreScreen onNavigate={navigate} toast={pushToast} />}
+              {screen === "detail" && (
+                <DetailScreen
+                  providerId={detailId}
+                  onBack={goBack}
+                  onBook={() => navigate("booking")}
+                  toast={pushToast}
+                />
+              )}
+              {screen === "booking" && (
+                <BookingScreen
+                  serviceId={detailId}
+                  onBack={goBack}
+                  onBookingCreated={(booking) => {
+                    setConfirmData(booking);
+                  }}
+                  toast={pushToast}
+                  onNavigate={navigate}
+                />
+              )}
+              {screen === "bookings" && (
+                <BookingsScreen
+                  onNavigate={navigate}
+                  onViewDetails={openBookingDetail}
+                  toast={pushToast}
+                />
+              )}
+              {screen === "booking-detail" && bookingDetailId && (
+                <BookingDetailsScreen
+                  bookingId={bookingDetailId}
+                  onBack={onBack}
+                  toast={pushToast}
+                />
+              )}
+              {screen === "profile"  && <ProfileScreen  onNavigate={navigate} toast={pushToast} />}
+              {screen === "addresses" && <AddressScreen onBack={goBack} toast={pushToast} />}
+            </div>
+
+            {/* Bottom nav */}
+            {showBottomNav && (
+              <div className="shrink-0 px-4 pb-4 pt-2" style={{ background:"linear-gradient(to top,#0F1115 80%,transparent)", borderTop:"1px solid rgba(255,255,255,0.06)" }}>
+                <div className="flex items-center justify-around">
+                  {navItems.map(({ id, icon:Icon, label }) => {
+                    const isActive = activeTab === id;
+                    return (
+                      <button key={id} onClick={() => navigate(id)} className="flex flex-col items-center gap-1 px-4 py-2 relative">
+                        {isActive && <span className="absolute -top-1 w-8 h-0.5 rounded-full" style={{ background:"#5B6CFF" }} />}
+                        <Icon size={22} className={isActive?"text-[#5B6CFF]":"text-[#A5A9B5]"} strokeWidth={isActive?2.5:1.8} />
+                        <span className={`text-[10px] font-semibold ${isActive?"text-[#5B6CFF]":"text-[#A5A9B5]"}`}>{label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Booking confirmation modal */}
+            {confirmData && (
+              <ConfirmModal
+                booking={confirmData}
+                onClose={() => { setConfirmData(null); navigate("bookings"); }}
+              />
+            )}
+          </>
         )}
       </div>
     </div>

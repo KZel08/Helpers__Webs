@@ -83,18 +83,35 @@ export class PaymentsService {
       receipt: booking.id,
     });
 
-    const payment = await this.paymentsRepo.create({
-      bookingId: dto.bookingId,
-      amount: booking.totalAmount,
-      method: dto.method,
-      status: PaymentStatus.PENDING,
-      provider: 'razorpay',
-      transactionId: order.id,
-    });
+    let payment;
+    try {
+      payment = await this.paymentsRepo.create({
+        bookingId: dto.bookingId,
+        amount: booking.totalAmount,
+        method: dto.method,
+        status: PaymentStatus.PENDING,
+        provider: 'razorpay',
+        transactionId: order.id,
+      });
+    } catch (err) {
+      if ((err as { code?: string }).code === 'P2002') {
+        payment = await this.paymentsRepo.findByBookingId(dto.bookingId);
+        if (!payment) {
+          throw new BadRequestException(
+            'Payment creation failed. Please try again.',
+          );
+        }
+        if (payment.status === PaymentStatus.SUCCESS) {
+          throw new BadRequestException('Booking is already paid');
+        }
+      } else {
+        throw err;
+      }
+    }
 
     return {
       payment,
-      orderId: order.id,
+      orderId: payment.transactionId ?? order.id,
       amount: booking.totalAmount,
       currency: 'INR',
       keyId: razorpayKey,
