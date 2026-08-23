@@ -4,7 +4,8 @@ import { useServices, useService } from "../hooks/useServices";
 import { useAddresses } from "../hooks/useAddresses";
 import { useBookings } from "../hooks/useBookings";
 import type { ServiceData, AddressData, CreateAddressRequest, UpdateAddressRequest, BookingData } from "../lib/api";
-import { bookingsApi } from "../lib/api";
+import { bookingsApi, paymentsApi } from "../lib/api";
+import { loadRazorpayScript } from "../lib/razorpay";
 import {
   MapPin, Bell, Search, Star, ChevronRight, Home, Grid,
   CalendarCheck, User, Sparkles, Zap, Shield, Clock,
@@ -1609,6 +1610,13 @@ function BookingDetailsScreen({
   const [error, setError] = useState<string | null>(null);
   const [isCancelling, setIsCancelling] = useState(false);
 
+  // ── Payment state ─────────────────────────────────────────────────────────
+  // isPaying covers the entire payment lifecycle:
+  //   creating the order → loading Checkout script → waiting for /verify
+  // This prevents double-clicks / duplicate orders.
+  const [isPaying, setIsPaying] = useState(false);
+  const [payError, setPayError] = useState<string | null>(null);
+
   const fetchBooking = async () => {
     setIsLoading(true);
     setError(null);
@@ -1638,6 +1646,84 @@ function BookingDetailsScreen({
       toast(err instanceof Error ? err.message : "Failed to cancel booking.", "#EF4444");
     } finally {
       setIsCancelling(false);
+    }
+  };
+
+  // ── Payment handler ───────────────────────────────────────────────────────
+  const handlePay = async () => {
+    if (!booking || isPaying) return;
+
+    setIsPaying(true);
+    setPayError(null);
+
+    try {
+      // Step 1 — create / reuse the Razorpay order on the backend.
+      // The backend amount is authoritative; we never derive it locally.
+      const orderResp = await paymentsApi.createOrder({
+        bookingId: booking.id,
+        method: "UPI",
+      });
+
+      // Step 2 — load the Razorpay Checkout script (no-op if already loaded).
+      await loadRazorpayScript();
+
+      // Step 3 — open Razorpay Checkout.
+      // The handler is only reached when Razorpay deems the payment successful;
+      // we still verify server-side before updating any UI state.
+      await new Promise<void>((resolve, reject) => {
+        const rzp = new window.Razorpay({
+          key: orderResp.keyId,
+          amount: orderResp.amount * 100, // API amount is INR; Razorpay Checkout expects paise
+          currency: orderResp.currency,
+          order_id: orderResp.orderId,
+          name: "Helpers",
+          description: booking.service.title,
+          theme: { color: "#5B6CFF" },
+          modal: {
+            escape: false,
+            ondismiss: () => {
+              // User closed Checkout without paying — allow retry, no success.
+              setIsPaying(false);
+              resolve();
+            },
+          },
+          handler: async (response) => {
+            // Step 4 — verify the payment signature server-side.
+            // Only after this call succeeds do we treat the payment as done.
+            try {
+              await paymentsApi.verify({
+                razorpayOrderId: response.razorpay_order_id,
+                razorpayPaymentId: response.razorpay_payment_id,
+                razorpaySignature: response.razorpay_signature,
+              });
+
+              // Step 5 — refetch booking from backend so UI reflects server state.
+              // We do NOT manually set payment.status = SUCCESS here.
+              const refreshed = await bookingsApi.get(bookingId);
+              setBooking(refreshed);
+              toast("Payment successful!", "#22C55E");
+              resolve();
+            } catch (verifyErr) {
+              // Verification failed — do NOT mark as paid.
+              const msg = verifyErr instanceof Error
+                ? verifyErr.message
+                : "Payment verification failed. Please contact support.";
+              setPayError(msg);
+              reject(new Error(msg));
+            } finally {
+              setIsPaying(false);
+            }
+          },
+        });
+
+        rzp.open();
+      });
+    } catch (err) {
+      // Any error before/during Checkout (order creation, script load, verify).
+      // ondismiss also calls setIsPaying(false), so only set here on hard errors.
+      const msg = err instanceof Error ? err.message : "Payment failed. Please try again.";
+      setPayError(msg);
+      setIsPaying(false);
     }
   };
 
@@ -1714,6 +1800,8 @@ function BookingDetailsScreen({
   const scheduledDisplay = formatBookingDate(booking.scheduledAt ?? booking.bookingDate);
   const amountDisplay = typeof booking.totalAmount === "number" ? `₹${booking.totalAmount.toLocaleString()}` : "—";
   const isPending = booking.status === "PENDING";
+  const paymentStatus = booking.payment?.status;
+  const isAlreadyPaid = paymentStatus === "SUCCESS";
 
   const rows: Array<[string, string]> = [
     ["Booking ID",  booking.id],
@@ -1722,7 +1810,7 @@ function BookingDetailsScreen({
     ["Status",      booking.status],
     ["Scheduled",   scheduledDisplay],
     ["Amount",      amountDisplay],
-    ...(booking.payment?.status ? [["Payment", booking.payment.status] as [string, string]] : []),
+    ...(paymentStatus ? [["Payment", paymentStatus] as [string, string]] : []),
     ...(booking.notes?.trim() ? [["Notes", booking.notes.trim()] as [string, string]] : []),
   ];
 
@@ -1749,12 +1837,63 @@ function BookingDetailsScreen({
         ))}
       </div>
 
+      {/* ── Payment section ──────────────────────────────────────────────── */}
+      {/* Show whenever booking is not CANCELLED — payment can be collected
+          for PENDING, ACCEPTED, or ONGOING bookings. Hide if cancelled. */}
+      {booking.status !== "CANCELLED" && (
+        <div className="mt-4 bg-[#171A21] rounded-2xl p-4">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-[#A5A9B5] text-sm font-medium">Payment</span>
+            <span className="text-white font-bold">{amountDisplay}</span>
+          </div>
+
+          {isAlreadyPaid ? (
+            /* ── Paid state ─────────────────────────────────────────────── */
+            <div className="flex items-center gap-2 justify-center bg-[rgba(34,197,94,0.1)] border border-[rgba(34,197,94,0.3)] rounded-xl px-4 py-3">
+              <CheckCircle2 size={16} className="text-[#22C55E] shrink-0" />
+              <span className="text-[#22C55E] text-sm font-semibold">Paid</span>
+            </div>
+          ) : (
+            /* ── Pay Now / paying state ─────────────────────────────────── */
+            <button
+              id="pay-now-btn"
+              onClick={handlePay}
+              disabled={isPaying}
+              className="w-full h-12 rounded-2xl font-bold text-white flex items-center justify-center gap-2 active:opacity-80 transition-opacity disabled:opacity-60"
+              style={{ background: "linear-gradient(135deg,#22C55E 0%,#16A34A 100%)" }}
+            >
+              {isPaying ? (
+                <>
+                  <Timer size={16} className="animate-spin" />
+                  Processing…
+                </>
+              ) : (
+                "Pay Now"
+              )}
+            </button>
+          )}
+
+          {/* Verification error — visible after Checkout success but verify fails */}
+          {payError && (
+            <div className="mt-3 rounded-xl bg-[rgba(239,68,68,0.1)] border border-[rgba(239,68,68,0.3)] px-4 py-3">
+              <p className="text-[#FCA5A5] text-xs text-center">{payError}</p>
+              <button
+                onClick={() => { setPayError(null); }}
+                className="mt-2 w-full text-[#5B6CFF] text-xs font-semibold text-center"
+              >
+                Dismiss
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Cancel action — PENDING only */}
       {isPending && (
         <button
           onClick={handleCancel}
           disabled={isCancelling}
-          className="mt-5 w-full h-12 rounded-2xl font-bold text-[#EF4444] border border-[rgba(239,68,68,0.4)] bg-[rgba(239,68,68,0.08)] flex items-center justify-center gap-2 active:opacity-80 transition-opacity disabled:opacity-50"
+          className="mt-4 w-full h-12 rounded-2xl font-bold text-[#EF4444] border border-[rgba(239,68,68,0.4)] bg-[rgba(239,68,68,0.08)] flex items-center justify-center gap-2 active:opacity-80 transition-opacity disabled:opacity-50"
         >
           {isCancelling ? "Cancelling…" : "Cancel Booking"}
         </button>

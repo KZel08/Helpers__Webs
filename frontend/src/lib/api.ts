@@ -332,12 +332,55 @@ export const reviewsApi = {
 
 // ─── Payments API ──────────────────────────────────────────────────────────
 
+export type PaymentMethod = 'CASH' | 'UPI' | 'CARD' | 'NET_BANKING' | 'WALLET';
+export type PaymentStatus = 'PENDING' | 'SUCCESS' | 'FAILED' | 'REFUNDED';
+
+export interface PaymentRecord {
+  id: string;
+  bookingId: string;
+  amount: number;
+  method: string;
+  status: PaymentStatus;
+  provider: string | null;
+  transactionId: string | null;
+}
+
+export interface CreatePaymentOrderRequest {
+  bookingId: string;
+  method: PaymentMethod;
+}
+
+export interface CreatePaymentOrderResponse {
+  payment: PaymentRecord;
+  orderId: string;
+  amount: number;
+  currency: string;
+  keyId: string;
+}
+
+export interface VerifyPaymentRequest {
+  razorpayOrderId: string;
+  razorpayPaymentId: string;
+  razorpaySignature: string;
+}
+
+export interface VerifyPaymentResponse {
+  message: string;
+  payment: PaymentRecord;
+}
+
 export const paymentsApi = {
-  createOrder: (body: { bookingId: string; method: string }) =>
-    apiFetch<unknown>('/payments/create', { method: 'POST', body: JSON.stringify(body) }),
-  verify: (body: { razorpayOrderId: string; razorpayPaymentId: string; razorpaySignature: string }) =>
-    apiFetch<unknown>('/payments/verify', { method: 'POST', body: JSON.stringify(body) }),
-  history: () => apiFetch<unknown[]>('/payments/history'),
+  createOrder: (body: CreatePaymentOrderRequest) =>
+    apiFetch<CreatePaymentOrderResponse>('/payments/create', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  verify: (body: VerifyPaymentRequest) =>
+    apiFetch<VerifyPaymentResponse>('/payments/verify', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  history: () => apiFetch<PaymentRecord[]>('/payments/history'),
 };
 
 // ─── Support API ───────────────────────────────────────────────────────────
