@@ -2,14 +2,46 @@ import { useState, useEffect } from "react";
 import { useCategories } from "../hooks/useCategories";
 import { useServices, useService } from "../hooks/useServices";
 import { useAddresses } from "../hooks/useAddresses";
-import type { ServiceData, AddressData, CreateAddressRequest, UpdateAddressRequest } from "../lib/api";
+import type { ServiceData, AddressData, CreateAddressRequest, UpdateAddressRequest, BookingData } from "../lib/api";
+import { bookingsApi } from "../lib/api";
 import {
   MapPin, Bell, Search, Star, ChevronRight, Home, Grid,
   CalendarCheck, User, Sparkles, Zap, Shield, Clock,
-  CheckCircle2, ArrowLeft, Phone, MessageSquare, Filter,
+  CheckCircle2, ArrowLeft, Filter,
   Plus, Minus, Heart, TrendingUp, Flame, Award, ThumbsUp,
   Repeat2, Gift, Timer, X, Share2, Copy, SlidersHorizontal,
 } from "lucide-react";
+
+// ─── Date/Time helpers ────────────────────────────────────────────────────────────────
+
+/** Convert UI date label ("12 Jul") + time label ("10:00 AM") into an ISO 8601 string.
+ *  Uses the current year. No external library needed.
+ *  Returns null if parsing fails.
+ */
+function buildBookingIso(dateLabel: string, timeLabel: string): string | null {
+  const MONTHS: Record<string, number> = {
+    Jan: 0, Feb: 1, Mar: 2, Apr: 3, May: 4, Jun: 5,
+    Jul: 6, Aug: 7, Sep: 8, Oct: 9, Nov: 10, Dec: 11,
+  };
+  const [dayStr, monthStr] = dateLabel.trim().split(" ");
+  const day = parseInt(dayStr, 10);
+  const monthNum = MONTHS[monthStr];
+  if (isNaN(day) || monthNum === undefined) return null;
+
+  // Parse time: e.g. "08:00 AM", "2:00 PM", "12:00 PM"
+  const timeParts = timeLabel.trim().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+  if (!timeParts) return null;
+  let hours = parseInt(timeParts[1], 10);
+  const minutes = parseInt(timeParts[2], 10);
+  const meridiem = timeParts[3].toUpperCase();
+  if (meridiem === "AM" && hours === 12) hours = 0;
+  if (meridiem === "PM" && hours !== 12) hours += 12;
+
+  const year = new Date().getFullYear();
+  const d = new Date(year, monthNum, day, hours, minutes, 0, 0);
+  if (isNaN(d.getTime())) return null;
+  return d.toISOString();
+}
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -719,9 +751,21 @@ function DetailScreen({ providerId, onBack, onBook, toast }: { providerId: strin
 
 // ─── Booking screen ───────────────────────────────────────────────────────────
 
-function BookingScreen({ providerId, onBack, onConfirm, toast, onNavigate }: { providerId: string; onBack: () => void; onConfirm: () => void; toast: (msg: string, color?: string) => void; onNavigate: (s: Screen, id?: string) => void }) {
-  const p = ALL_PROVIDERS.find((x) => x.id === providerId) ?? ALL_PROVIDERS[0];
-  const { addresses, isLoading, error, refetch } = useAddresses();
+function BookingScreen({
+  serviceId,
+  onBack,
+  onBookingCreated,
+  toast,
+  onNavigate,
+}: {
+  serviceId: string;
+  onBack: () => void;
+  /** Called with the successfully created BookingData. */
+  onBookingCreated: (booking: BookingData) => void;
+  toast: (msg: string, color?: string) => void;
+  onNavigate: (s: Screen, id?: string) => void;
+}) {
+  const { addresses, isLoading: addressesLoading, error: addressesError, refetch } = useAddresses();
   const [qty, setQty] = useState(1);
   const [selectedDate, setSelectedDate] = useState("12 Jul");
   const [selectedTime, setSelectedTime] = useState("10:00 AM");
@@ -729,11 +773,14 @@ function BookingScreen({ providerId, onBack, onConfirm, toast, onNavigate }: { p
   const [promoApplied, setPromoApplied] = useState(false);
   const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null);
   const [showAddressPicker, setShowAddressPicker] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const dates = ["11 Jul","12 Jul","13 Jul","14 Jul","15 Jul"];
   const times = ["08:00 AM","10:00 AM","12:00 PM","2:00 PM","4:00 PM","6:00 PM"];
-  const base = parseInt(p.price.replace(/[₹,]/g,""));
+
+  // Visual price summary (frontend-only; backend uses service.price as authoritative amount)
+  const DISPLAY_BASE = 499; // placeholder display price when no mock data available
   const discount = promoApplied ? 180 : 0;
-  const total = Math.max(0, base * qty + 49 - discount);
+  const displayTotal = Math.max(0, DISPLAY_BASE * qty + 49 - discount);
 
   const selectedAddress = addresses.find((a) => a.id === selectedAddressId) ?? null;
 
@@ -759,6 +806,53 @@ function BookingScreen({ providerId, onBack, onConfirm, toast, onNavigate }: { p
     return parts.join(", ");
   };
 
+  const handleConfirm = async () => {
+    if (isSubmitting) return; // prevent duplicate submissions
+
+    if (!serviceId) {
+      toast("Service information is missing. Please go back and try again.", "#EF4444");
+      return;
+    }
+
+    if (addressesLoading) {
+      toast("Still loading your addresses. Please wait.", "#F59E0B");
+      return;
+    }
+
+    if (addresses.length === 0) {
+      toast("No saved addresses. Please add an address first.", "#EF4444");
+      onNavigate("addresses");
+      return;
+    }
+
+    if (!selectedAddressId) {
+      toast("Please select a delivery address before confirming.", "#EF4444");
+      return;
+    }
+
+    const isoTimestamp = buildBookingIso(selectedDate, selectedTime);
+    if (!isoTimestamp) {
+      toast("Could not parse selected date/time. Please reselect.", "#EF4444");
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const booking = await bookingsApi.create({
+        serviceId,
+        addressId: selectedAddressId,
+        bookingDate: isoTimestamp,
+        scheduledAt: isoTimestamp,
+      });
+      onBookingCreated(booking);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to create booking. Please try again.";
+      toast(message, "#EF4444");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   return (
     <div className="flex flex-col gap-5 pb-4">
       <div className="flex items-center gap-4 pt-2">
@@ -766,16 +860,6 @@ function BookingScreen({ providerId, onBack, onConfirm, toast, onNavigate }: { p
           <ArrowLeft size={18} className="text-white" />
         </button>
         <h2 className="font-bold text-white text-lg" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>Book a Helper</h2>
-      </div>
-
-      {/* Provider */}
-      <div className="bg-[#171A21] rounded-2xl p-4 flex items-center gap-4">
-        <img src={p.img} alt={p.name} className="w-14 h-14 rounded-xl object-cover bg-[#20242D] shrink-0" />
-        <div>
-          <p className="font-bold text-white" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>{p.name}</p>
-          <p className="text-[#A5A9B5] text-sm">{p.role}</p>
-          <StarRow rating={p.rating} reviews={p.reviews} />
-        </div>
       </div>
 
       {/* Date */}
@@ -802,7 +886,7 @@ function BookingScreen({ providerId, onBack, onConfirm, toast, onNavigate }: { p
       <div className="bg-[#171A21] rounded-2xl p-4 flex items-center justify-between">
         <div>
           <p className="font-bold text-white" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>Hours / Sessions</p>
-          <p className="text-[#A5A9B5] text-sm">{p.price} per session</p>
+          <p className="text-[#A5A9B5] text-sm">Price determined at confirmation</p>
         </div>
         <div className="flex items-center gap-4">
           <button onClick={() => setQty(Math.max(1, qty-1))} className="w-9 h-9 rounded-xl bg-[#20242D] flex items-center justify-center active:scale-90 transition-transform"><Minus size={16} className="text-white"/></button>
@@ -819,14 +903,14 @@ function BookingScreen({ providerId, onBack, onConfirm, toast, onNavigate }: { p
             <button onClick={() => setShowAddressPicker(true)} className="text-[#5B6CFF] text-sm font-semibold">Change</button>
           )}
         </div>
-        {isLoading ? (
+        {addressesLoading ? (
           <div className="space-y-2">
             <div className="h-4 bg-[#20242D] rounded w-3/4 animate-pulse" />
             <div className="h-4 bg-[#20242D] rounded w-1/2 animate-pulse" />
           </div>
-        ) : error && addresses.length === 0 ? (
+        ) : addressesError && addresses.length === 0 ? (
           <div>
-            <p className="text-[#EF4444] text-sm mb-2">{error}</p>
+            <p className="text-[#EF4444] text-sm mb-2">{addressesError}</p>
             <button onClick={refetch} className="text-[#5B6CFF] text-sm font-semibold">Retry</button>
           </div>
         ) : addresses.length === 0 ? (
@@ -856,11 +940,11 @@ function BookingScreen({ providerId, onBack, onConfirm, toast, onNavigate }: { p
         </button>
       </div>
 
-      {/* Price summary */}
+      {/* Price summary (display only — actual booking amount set by backend) */}
       <div className="bg-[#171A21] rounded-2xl p-4 flex flex-col gap-3">
-        <h3 className="font-bold text-white" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>Price Summary</h3>
+        <h3 className="font-bold text-white" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>Estimated Summary</h3>
         {[
-          { label:`Service × ${qty}`, value:`₹${(base*qty).toLocaleString()}`, green:false },
+          { label:`Service × ${qty}`, value:`₹${(DISPLAY_BASE*qty).toLocaleString()}`, green:false },
           { label:"Platform fee",     value:"₹49",  green:false },
           ...(promoApplied ? [{ label:"Discount (FIRST30)", value:"−₹180", green:true }] : []),
         ].map(({ label, value, green }) => (
@@ -870,15 +954,21 @@ function BookingScreen({ providerId, onBack, onConfirm, toast, onNavigate }: { p
           </div>
         ))}
         <div className="border-t border-[rgba(255,255,255,0.08)] pt-3 flex justify-between">
-          <span className="font-bold text-white">Total</span>
-          <span className="font-bold text-white text-lg">₹{total.toLocaleString()}</span>
+          <span className="font-bold text-white">Estimated Total</span>
+          <span className="font-bold text-white text-lg">₹{displayTotal.toLocaleString()}</span>
         </div>
+        <p className="text-[#A5A9B5] text-[10px] mt-1">Final amount determined by service pricing at booking time.</p>
       </div>
 
       {/* Confirm */}
-      <button onClick={onConfirm} className="w-full h-14 rounded-2xl font-bold text-white text-base flex items-center justify-center gap-2 active:opacity-80 transition-opacity" style={{ background:"linear-gradient(135deg,#5B6CFF 0%,#7E57FF 100%)" }}>
+      <button
+        onClick={handleConfirm}
+        disabled={isSubmitting || addressesLoading}
+        className="w-full h-14 rounded-2xl font-bold text-white text-base flex items-center justify-center gap-2 active:opacity-80 transition-opacity disabled:opacity-60"
+        style={{ background:"linear-gradient(135deg,#5B6CFF 0%,#7E57FF 100%)" }}
+      >
         <CheckCircle2 size={20} />
-        Confirm Booking — ₹{total.toLocaleString()}
+        {isSubmitting ? "Confirming…" : "Confirm Booking"}
       </button>
 
       {showAddressPicker && (
@@ -1466,7 +1556,17 @@ function ProfileScreen({ onNavigate, toast }: { onNavigate: (s: Screen) => void;
 
 // ─── Confirmation modal ───────────────────────────────────────────────────────
 
-function ConfirmModal({ providerName, selectedDate, selectedTime, total, onClose }: { providerName: string; selectedDate: string; selectedTime: string; total: string; onClose: () => void }) {
+function ConfirmModal({ booking, onClose }: { booking: BookingData; onClose: () => void }) {
+  const helperName = `${booking.helper.user.firstName} ${booking.helper.user.lastName}`.trim();
+  const scheduledRaw = booking.scheduledAt ?? booking.bookingDate;
+  const scheduledDate = new Date(scheduledRaw);
+  const displayDate = isNaN(scheduledDate.getTime())
+    ? scheduledRaw
+    : scheduledDate.toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+  const amountDisplay = typeof booking.totalAmount === "number"
+    ? `₹${booking.totalAmount.toLocaleString()}`
+    : "—";
+
   return (
     <div className="absolute inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm px-5 pb-8">
       <div className="bg-[#171A21] rounded-3xl p-6 w-full flex flex-col items-center gap-4">
@@ -1474,21 +1574,25 @@ function ConfirmModal({ providerName, selectedDate, selectedTime, total, onClose
           <CheckCircle2 size={32} className="text-[#22C55E]" />
         </div>
         <div className="text-center">
-          <h2 className="text-xl font-bold text-white" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>Booking Confirmed!</h2>
+          <h2 className="text-xl font-bold text-white" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>Booking Requested!</h2>
           <p className="text-[#A5A9B5] text-sm mt-1">You&apos;ll get a reminder 30 min before your helper arrives.</p>
         </div>
         <div className="bg-[#20242D] rounded-2xl p-4 w-full flex flex-col gap-2 text-sm">
-          {[
-            ["Helper",     providerName],
-            ["Date & Time",`${selectedDate}, ${selectedTime}`],
-            ["Total Paid", total],
-          ].map(([k, v]) => (
+          {([
+            ["Service",        booking.service.title],
+            ["Helper",         helperName || "—"],
+            ["Scheduled",      displayDate],
+            ["Booking ID",     booking.id.slice(0, 8) + "…"],
+            ["Service Amount", amountDisplay],
+            ["Status",         booking.status],
+          ] as [string, string][]).map(([k, v]) => (
             <div key={k} className="flex justify-between">
               <span className="text-[#A5A9B5]">{k}</span>
               <span className="text-white font-semibold">{v}</span>
             </div>
           ))}
         </div>
+        <p className="text-[#A5A9B5] text-[11px] text-center">Payment will be collected separately. This booking is not yet paid.</p>
         <button onClick={onClose} className="w-full h-12 rounded-2xl font-bold text-white active:opacity-80 transition-opacity" style={{ background:"linear-gradient(135deg,#5B6CFF,#7E57FF)" }}>Done</button>
       </div>
     </div>
@@ -1510,7 +1614,7 @@ export default function App() {
   const [screen, setScreen]         = useState<Screen>("home");
   const [prevScreen, setPrevScreen] = useState<Screen>("home");
   const [detailId, setDetailId]     = useState("1");
-  const [confirmData, setConfirmData] = useState<{ name:string; date:string; time:string; total:string }|null>(null);
+  const [confirmData, setConfirmData] = useState<BookingData | null>(null);
   const [toasts, setToasts]         = useState<{ id:number; msg:string; color?:string }[]>([]);
   const toastId = useState(0);
 
@@ -1567,11 +1671,10 @@ export default function App() {
           )}
           {screen === "booking" && (
             <BookingScreen
-              providerId={detailId}
+              serviceId={detailId}
               onBack={goBack}
-              onConfirm={() => {
-                const p = ALL_PROVIDERS.find((x) => x.id === detailId) ?? ALL_PROVIDERS[0];
-                setConfirmData({ name:p.name, date:"12 Jul", time:"10:00 AM", total:"₹468" });
+              onBookingCreated={(booking) => {
+                setConfirmData(booking);
               }}
               toast={pushToast}
               onNavigate={navigate}
@@ -1603,10 +1706,7 @@ export default function App() {
         {/* Booking confirmation modal */}
         {confirmData && (
           <ConfirmModal
-            providerName={confirmData.name}
-            selectedDate={confirmData.date}
-            selectedTime={confirmData.time}
-            total={confirmData.total}
+            booking={confirmData}
             onClose={() => { setConfirmData(null); navigate("bookings"); }}
           />
         )}

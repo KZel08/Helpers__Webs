@@ -266,11 +266,23 @@ export const helpersApi = {
 
 // ─── Bookings API ──────────────────────────────────────────────────────────
 
+/** Matches backend CreateBookingDto exactly. Do NOT add helperId or totalAmount. */
+export interface CreateBookingRequest {
+  serviceId: string;
+  addressId: string;
+  /** ISO date string, e.g. "2026-08-01T10:00:00.000Z" */
+  bookingDate: string;
+  /** ISO date string (optional) */
+  scheduledAt?: string;
+  notes?: string;
+}
+
 export interface BookingData {
   id: string;
   status: string;
   totalAmount: number;
   bookingDate: string;
+  scheduledAt?: string | null;
   notes?: string;
   service: { title: string };
   helper: { user: { firstName: string; lastName: string } };
@@ -281,7 +293,7 @@ export const bookingsApi = {
   list: (role: 'customer' | 'helper' = 'customer') =>
     apiFetch<BookingData[]>(`/bookings?role=${role}`),
   get: (id: string) => apiFetch<BookingData>(`/bookings/${id}`),
-  create: (body: unknown) =>
+  create: (body: CreateBookingRequest) =>
     apiFetch<BookingData>('/bookings', { method: 'POST', body: JSON.stringify(body) }),
   update: (id: string, body: unknown) =>
     apiFetch<BookingData>(`/bookings/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
