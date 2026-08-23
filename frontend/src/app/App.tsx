@@ -46,7 +46,7 @@ function buildBookingIso(dateLabel: string, timeLabel: string): string | null {
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type Screen = "home" | "explore" | "bookings" | "profile" | "detail" | "booking" | "addresses";
+type Screen = "home" | "explore" | "bookings" | "profile" | "detail" | "booking" | "addresses" | "booking-detail";
 
 interface Provider {
   id: string;
@@ -1408,12 +1408,12 @@ function BookingCard({
   booking,
   onCancel,
   isCancelling,
-  toast,
+  onViewDetails,
 }: {
   booking: BookingData;
   onCancel: (id: string) => void;
   isCancelling: boolean;
-  toast: (msg: string, color?: string) => void;
+  onViewDetails: (id: string) => void;
 }) {
   const helperName = `${booking.helper.user.firstName} ${booking.helper.user.lastName}`.trim();
   const scheduledDisplay = formatBookingDate(booking.scheduledAt ?? booking.bookingDate);
@@ -1463,7 +1463,7 @@ function BookingCard({
             </button>
           )}
           <button
-            onClick={() => toast(`Booking ID: ${booking.id.slice(0, 8)}… · ${scheduledDisplay}`)}
+            onClick={() => onViewDetails(booking.id)}
             className="text-xs font-semibold text-white bg-[#20242D] px-3 py-1.5 rounded-xl active:scale-95 transition-transform"
           >
             View Details
@@ -1493,7 +1493,7 @@ function BookingSkeletonCard() {
   );
 }
 
-function BookingsScreen({ onNavigate, toast }: { onNavigate: (s: Screen, id?: string) => void; toast: (msg: string, color?: string) => void }) {
+function BookingsScreen({ onNavigate, onViewDetails, toast }: { onNavigate: (s: Screen, id?: string) => void; onViewDetails: (bookingId: string) => void; toast: (msg: string, color?: string) => void }) {
   const [tab, setTab] = useState<"upcoming" | "past">("upcoming");
   const [cancellingId, setCancellingId] = useState<string | null>(null);
   const { bookings, isLoading, error, refetch, cancelBooking } = useBookings("customer");
@@ -1575,11 +1575,200 @@ function BookingsScreen({ onNavigate, toast }: { onNavigate: (s: Screen, id?: st
               booking={b}
               onCancel={handleCancel}
               isCancelling={cancellingId === b.id}
-              toast={toast}
+              onViewDetails={onViewDetails}
             />
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+// ─── Booking details screen ───────────────────────────────────────────────────
+
+function BookingDetailRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-start justify-between gap-4 py-3 border-b border-[rgba(255,255,255,0.05)] last:border-0">
+      <span className="text-[#A5A9B5] text-sm shrink-0">{label}</span>
+      <span className="text-white text-sm font-semibold text-right break-all">{value}</span>
+    </div>
+  );
+}
+
+function BookingDetailsScreen({
+  bookingId,
+  onBack,
+  toast,
+}: {
+  bookingId: string;
+  onBack: () => void;
+  toast: (msg: string, color?: string) => void;
+}) {
+  const [booking, setBooking] = useState<BookingData | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [isCancelling, setIsCancelling] = useState(false);
+
+  const fetchBooking = async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const data = await bookingsApi.get(bookingId);
+      setBooking(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load booking details.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchBooking();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bookingId]);
+
+  const handleCancel = async () => {
+    if (!booking || isCancelling) return;
+    setIsCancelling(true);
+    try {
+      await bookingsApi.cancel(booking.id);
+      setBooking((prev) => prev ? { ...prev, status: "CANCELLED" } : prev);
+      toast("Booking cancelled.", "#EF4444");
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "Failed to cancel booking.", "#EF4444");
+    } finally {
+      setIsCancelling(false);
+    }
+  };
+
+  // ── Loading skeleton ──────────────────────────────────────────────────────
+  if (isLoading) {
+    return (
+      <div className="flex flex-col pb-4">
+        {/* Back header */}
+        <div className="flex items-center gap-4 pt-2 pb-5">
+          <button onClick={onBack} className="w-10 h-10 rounded-full bg-[#20242D] flex items-center justify-center active:scale-90 transition-transform">
+            <ArrowLeft size={18} className="text-white" />
+          </button>
+          <div className="h-5 bg-[#20242D] rounded w-36 animate-pulse" />
+        </div>
+        {/* Skeleton rows */}
+        <div className="bg-[#171A21] rounded-2xl p-4 flex flex-col gap-1 animate-pulse">
+          {Array.from({ length: 7 }).map((_, i) => (
+            <div key={i} className="flex justify-between py-3 border-b border-[rgba(255,255,255,0.05)] last:border-0">
+              <div className="h-4 bg-[#20242D] rounded w-24" />
+              <div className="h-4 bg-[#20242D] rounded w-28" />
+            </div>
+          ))}
+        </div>
+        <div className="h-12 bg-[#20242D] rounded-2xl mt-5 animate-pulse" />
+      </div>
+    );
+  }
+
+  // ── Error state ───────────────────────────────────────────────────────────
+  if (error) {
+    return (
+      <div className="flex flex-col gap-4 pt-2 pb-4">
+        <div className="flex items-center gap-4">
+          <button onClick={onBack} className="w-10 h-10 rounded-full bg-[#20242D] flex items-center justify-center active:scale-90 transition-transform">
+            <ArrowLeft size={18} className="text-white" />
+          </button>
+          <h2 className="font-bold text-white text-lg" style={{ fontFamily: "'Plus Jakarta Sans',sans-serif" }}>Booking Details</h2>
+        </div>
+        <div className="rounded-2xl border border-[rgba(239,68,68,0.35)] bg-[rgba(239,68,68,0.08)] p-6 text-center">
+          <CalendarCheck size={36} className="text-[#EF4444] mx-auto mb-3 opacity-60" />
+          <p className="text-[#FCA5A5] text-sm mb-3">{error}</p>
+          <button
+            onClick={fetchBooking}
+            className="text-[#5B6CFF] text-sm font-semibold bg-[rgba(91,108,255,0.12)] px-4 py-2 rounded-xl active:scale-95 transition-transform"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Not found ─────────────────────────────────────────────────────────────
+  if (!booking) {
+    return (
+      <div className="flex flex-col gap-4 pt-2 pb-4">
+        <div className="flex items-center gap-4">
+          <button onClick={onBack} className="w-10 h-10 rounded-full bg-[#20242D] flex items-center justify-center active:scale-90 transition-transform">
+            <ArrowLeft size={18} className="text-white" />
+          </button>
+          <h2 className="font-bold text-white text-lg" style={{ fontFamily: "'Plus Jakarta Sans',sans-serif" }}>Booking Details</h2>
+        </div>
+        <div className="text-center py-12">
+          <CalendarCheck size={48} className="text-[#A5A9B5] mx-auto mb-3 opacity-30" />
+          <p className="text-[#A5A9B5]">Booking not found.</p>
+          <button onClick={onBack} className="mt-3 text-[#5B6CFF] text-sm font-semibold">Go back</button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Detail view ───────────────────────────────────────────────────────────
+  const helperName = `${booking.helper.user.firstName} ${booking.helper.user.lastName}`.trim();
+  const scheduledDisplay = formatBookingDate(booking.scheduledAt ?? booking.bookingDate);
+  const amountDisplay = typeof booking.totalAmount === "number" ? `₹${booking.totalAmount.toLocaleString()}` : "—";
+  const isPending = booking.status === "PENDING";
+
+  const rows: Array<[string, string]> = [
+    ["Booking ID",  booking.id],
+    ["Service",     booking.service.title],
+    ["Helper",      helperName || "—"],
+    ["Status",      booking.status],
+    ["Scheduled",   scheduledDisplay],
+    ["Amount",      amountDisplay],
+    ...(booking.payment?.status ? [["Payment", booking.payment.status] as [string, string]] : []),
+    ...(booking.notes?.trim() ? [["Notes", booking.notes.trim()] as [string, string]] : []),
+  ];
+
+  return (
+    <div className="flex flex-col pb-4">
+      {/* Header */}
+      <div className="flex items-center gap-4 pt-2 pb-5">
+        <button onClick={onBack} className="w-10 h-10 rounded-full bg-[#20242D] flex items-center justify-center active:scale-90 transition-transform">
+          <ArrowLeft size={18} className="text-white" />
+        </button>
+        <div className="flex-1 min-w-0">
+          <h2 className="font-bold text-white text-lg truncate" style={{ fontFamily: "'Plus Jakarta Sans',sans-serif" }}>
+            {booking.service.title}
+          </h2>
+          <p className="text-[#A5A9B5] text-xs mt-0.5">Booking details</p>
+        </div>
+        <BookingStatusPill status={booking.status} />
+      </div>
+
+      {/* Detail rows */}
+      <div className="bg-[#171A21] rounded-2xl px-4">
+        {rows.map(([label, value]) => (
+          <BookingDetailRow key={label} label={label} value={value} />
+        ))}
+      </div>
+
+      {/* Cancel action — PENDING only */}
+      {isPending && (
+        <button
+          onClick={handleCancel}
+          disabled={isCancelling}
+          className="mt-5 w-full h-12 rounded-2xl font-bold text-[#EF4444] border border-[rgba(239,68,68,0.4)] bg-[rgba(239,68,68,0.08)] flex items-center justify-center gap-2 active:opacity-80 transition-opacity disabled:opacity-50"
+        >
+          {isCancelling ? "Cancelling…" : "Cancel Booking"}
+        </button>
+      )}
+
+      {/* Back button */}
+      <button
+        onClick={onBack}
+        className="mt-3 w-full h-12 rounded-2xl font-bold text-white flex items-center justify-center gap-2 active:opacity-80 transition-opacity"
+        style={{ background: "linear-gradient(135deg,#5B6CFF 0%,#7E57FF 100%)" }}
+      >
+        <ArrowLeft size={16} />
+        Back to Bookings
+      </button>
     </div>
   );
 }
@@ -1719,11 +1908,12 @@ const navItems = [
 // ─── App root ─────────────────────────────────────────────────────────────────
 
 export default function App() {
-  const [screen, setScreen]         = useState<Screen>("home");
-  const [prevScreen, setPrevScreen] = useState<Screen>("home");
-  const [detailId, setDetailId]     = useState("1");
+  const [screen, setScreen]           = useState<Screen>("home");
+  const [prevScreen, setPrevScreen]   = useState<Screen>("home");
+  const [detailId, setDetailId]       = useState("1");
+  const [bookingDetailId, setBookingDetailId] = useState<string | null>(null);
   const [confirmData, setConfirmData] = useState<BookingData | null>(null);
-  const [toasts, setToasts]         = useState<{ id:number; msg:string; color?:string }[]>([]);
+  const [toasts, setToasts]           = useState<{ id:number; msg:string; color?:string }[]>([]);
   const toastId = useState(0);
 
   const pushToast = (msg: string, color?: string) => {
@@ -1743,7 +1933,12 @@ export default function App() {
 
   const tabScreens: Screen[] = ["home","explore","bookings","profile"];
   const activeTab = tabScreens.includes(screen) ? screen : prevScreen;
-  const showBottomNav = !["detail","booking","addresses"].includes(screen);
+  const showBottomNav = !["detail","booking","addresses","booking-detail"].includes(screen);
+
+  const openBookingDetail = (id: string) => {
+    setBookingDetailId(id);
+    navigate("booking-detail");
+  };
 
   return (
     <div className="min-h-screen flex items-center justify-center" style={{ background:"#0A0C0F" }}>
@@ -1788,7 +1983,20 @@ export default function App() {
               onNavigate={navigate}
             />
           )}
-          {screen === "bookings" && <BookingsScreen onNavigate={navigate} toast={pushToast} />}
+          {screen === "bookings" && (
+            <BookingsScreen
+              onNavigate={navigate}
+              onViewDetails={openBookingDetail}
+              toast={pushToast}
+            />
+          )}
+          {screen === "booking-detail" && bookingDetailId && (
+            <BookingDetailsScreen
+              bookingId={bookingDetailId}
+              onBack={goBack}
+              toast={pushToast}
+            />
+          )}
           {screen === "profile"  && <ProfileScreen  onNavigate={navigate} toast={pushToast} />}
           {screen === "addresses" && <AddressScreen onBack={goBack} toast={pushToast} />}
         </div>
