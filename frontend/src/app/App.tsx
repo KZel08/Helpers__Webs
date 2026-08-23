@@ -719,22 +719,44 @@ function DetailScreen({ providerId, onBack, onBook, toast }: { providerId: strin
 
 // ─── Booking screen ───────────────────────────────────────────────────────────
 
-function BookingScreen({ providerId, onBack, onConfirm, toast }: { providerId: string; onBack: () => void; onConfirm: () => void; toast: (msg: string, color?: string) => void }) {
+function BookingScreen({ providerId, onBack, onConfirm, toast, onNavigate }: { providerId: string; onBack: () => void; onConfirm: () => void; toast: (msg: string, color?: string) => void; onNavigate: (s: Screen, id?: string) => void }) {
   const p = ALL_PROVIDERS.find((x) => x.id === providerId) ?? ALL_PROVIDERS[0];
+  const { addresses, isLoading, error, refetch } = useAddresses();
   const [qty, setQty] = useState(1);
   const [selectedDate, setSelectedDate] = useState("12 Jul");
   const [selectedTime, setSelectedTime] = useState("10:00 AM");
   const [promoInput, setPromoInput] = useState("");
   const [promoApplied, setPromoApplied] = useState(false);
+  const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null);
+  const [showAddressPicker, setShowAddressPicker] = useState(false);
   const dates = ["11 Jul","12 Jul","13 Jul","14 Jul","15 Jul"];
   const times = ["08:00 AM","10:00 AM","12:00 PM","2:00 PM","4:00 PM","6:00 PM"];
   const base = parseInt(p.price.replace(/[₹,]/g,""));
   const discount = promoApplied ? 180 : 0;
   const total = Math.max(0, base * qty + 49 - discount);
 
+  const selectedAddress = addresses.find((a) => a.id === selectedAddressId) ?? null;
+
+  useEffect(() => {
+    if (addresses.length === 0) {
+      setSelectedAddressId(null);
+      return;
+    }
+    if (!selectedAddressId || !addresses.some((a) => a.id === selectedAddressId)) {
+      const defaultAddr = addresses.find((a) => a.isDefault) ?? addresses[0];
+      setSelectedAddressId(defaultAddr.id);
+    }
+  }, [addresses, selectedAddressId]);
+
   const applyPromo = () => {
     if (promoInput.trim().toUpperCase() === "FIRST30") { setPromoApplied(true); toast("Promo FIRST30 applied! −₹180 discount added.", "#22C55E"); }
     else toast("Invalid promo code. Try FIRST30.", "#EF4444");
+  };
+
+  const formatAddress = (addr: AddressData | null) => {
+    if (!addr) return null;
+    const parts = [addr.label, addr.houseNo, addr.street, addr.city, addr.state, addr.country, addr.postalCode].filter(Boolean);
+    return parts.join(", ");
   };
 
   return (
@@ -793,12 +815,31 @@ function BookingScreen({ providerId, onBack, onConfirm, toast }: { providerId: s
       <div className="bg-[#171A21] rounded-2xl p-4">
         <div className="flex items-center justify-between mb-2">
           <h3 className="font-bold text-white" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>Address</h3>
-          <button onClick={() => toast("Address change coming soon!", "#5B6CFF")} className="text-[#5B6CFF] text-sm font-semibold">Change</button>
+          {addresses.length > 0 && (
+            <button onClick={() => setShowAddressPicker(true)} className="text-[#5B6CFF] text-sm font-semibold">Change</button>
+          )}
         </div>
-        <div className="flex items-start gap-2">
-          <MapPin size={16} className="text-[#5B6CFF] mt-0.5 shrink-0" />
-          <p className="text-[#A5A9B5] text-sm">12, Linking Road, Bandra West, Mumbai – 400050</p>
-        </div>
+        {isLoading ? (
+          <div className="space-y-2">
+            <div className="h-4 bg-[#20242D] rounded w-3/4 animate-pulse" />
+            <div className="h-4 bg-[#20242D] rounded w-1/2 animate-pulse" />
+          </div>
+        ) : error && addresses.length === 0 ? (
+          <div>
+            <p className="text-[#EF4444] text-sm mb-2">{error}</p>
+            <button onClick={refetch} className="text-[#5B6CFF] text-sm font-semibold">Retry</button>
+          </div>
+        ) : addresses.length === 0 ? (
+          <div>
+            <p className="text-[#A5A9B5] text-sm mb-2">No saved addresses</p>
+            <button onClick={() => onNavigate("addresses")} className="text-[#5B6CFF] text-sm font-semibold">Add Address</button>
+          </div>
+        ) : (
+          <div className="flex items-start gap-2">
+            <MapPin size={16} className="text-[#5B6CFF] mt-0.5 shrink-0" />
+            <p className="text-[#A5A9B5] text-sm">{formatAddress(selectedAddress) || "Select an address"}</p>
+          </div>
+        )}
       </div>
 
       {/* Promo code */}
@@ -839,6 +880,60 @@ function BookingScreen({ providerId, onBack, onConfirm, toast }: { providerId: s
         <CheckCircle2 size={20} />
         Confirm Booking — ₹{total.toLocaleString()}
       </button>
+
+      {showAddressPicker && (
+        <BookingAddressPickerModal
+          addresses={addresses}
+          selectedAddressId={selectedAddressId}
+          onSelect={setSelectedAddressId}
+          onClose={() => setShowAddressPicker(false)}
+          onConfirm={(id) => { setSelectedAddressId(id); setShowAddressPicker(false); }}
+        />
+      )}
+    </div>
+  );
+}
+
+function BookingAddressPickerModal({ addresses, selectedAddressId, onSelect, onClose, onConfirm }: { addresses: AddressData[]; selectedAddressId: string | null; onSelect: (id: string) => void; onClose: () => void; onConfirm: (id: string) => void }) {
+  const [tempId, setTempId] = useState(selectedAddressId);
+  useEffect(() => { setTempId(selectedAddressId); }, [selectedAddressId]);
+
+  return (
+    <div className="absolute inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm px-5 pb-8">
+      <div className="bg-[#171A21] rounded-3xl p-5 w-full max-h-[70vh] flex flex-col">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xl font-bold text-white" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>Select Address</h2>
+          <button onClick={onClose} className="w-9 h-9 rounded-full bg-[#20242D] flex items-center justify-center active:scale-90 transition-transform">
+            <X size={16} className="text-white" />
+          </button>
+        </div>
+        <div className="flex flex-col gap-3 overflow-y-auto flex-1">
+          {addresses.map((addr) => {
+            const isSelected = addr.id === tempId;
+            return (
+              <button
+                key={addr.id}
+                onClick={() => setTempId(addr.id)}
+                className={`text-left rounded-2xl p-4 border transition-colors ${isSelected ? "border-[#5B6CFF] bg-[rgba(91,108,255,0.08)]" : "border-transparent bg-[#20242D]"}`}
+              >
+                <div className="flex items-center gap-2 mb-1">
+                  <MapPin size={14} className={`shrink-0 ${isSelected ? "text-[#5B6CFF]" : "text-[#A5A9B5]"}`} />
+                  <span className="font-bold text-white text-sm">{addr.label || "Address"}</span>
+                  {addr.isDefault && (
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[rgba(245,158,11,0.16)] text-[#FBBF24]">Default</span>
+                  )}
+                </div>
+                <p className="text-[#A5A9B5] text-sm">{addr.houseNo}, {addr.street}</p>
+                <p className="text-[#A5A9B5] text-sm">{addr.city}, {addr.state}, {addr.country} - {addr.postalCode}</p>
+              </button>
+            );
+          })}
+        </div>
+        <div className="flex gap-3 mt-4">
+          <button onClick={onClose} className="flex-1 h-12 rounded-2xl bg-[#20242D] text-white font-bold">Cancel</button>
+          <button onClick={() => onConfirm(tempId)} disabled={!tempId} className="flex-1 h-12 rounded-2xl font-bold text-white disabled:opacity-70" style={{ background:"linear-gradient(135deg,#5B6CFF 0%,#7E57FF 100%)" }}>Apply</button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -1479,6 +1574,7 @@ export default function App() {
                 setConfirmData({ name:p.name, date:"12 Jul", time:"10:00 AM", total:"₹468" });
               }}
               toast={pushToast}
+              onNavigate={navigate}
             />
           )}
           {screen === "bookings" && <BookingsScreen onNavigate={navigate} toast={pushToast} />}
