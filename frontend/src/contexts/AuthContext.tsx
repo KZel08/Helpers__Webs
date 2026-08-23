@@ -77,7 +77,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       password: string;
     }) => {
       const res = await authApi.register(data);
-      setUser(res.user);
+      return res;
     },
     [],
   );

@@ -270,7 +270,7 @@ function FlashDealCard({ deal, onNavigate }: { deal: typeof flashDeals[0]; onNav
 
 // ─── Login screen ──────────────────────────────────────────────────────────────
 
-function LoginScreen({ onLogin, toast }: { onLogin: (email: string, password: string) => Promise<void>; toast: (msg: string, color?: string) => void }) {
+function LoginScreen({ onLogin, onNavigate, toast }: { onLogin: (email: string, password: string) => Promise<void>; onNavigate: (s: Screen) => void; toast: (msg: string, color?: string) => void }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -333,7 +333,131 @@ function LoginScreen({ onLogin, toast }: { onLogin: (email: string, password: st
       </form>
 
       <p className="text-center text-[#A5A9B5] text-xs mt-2">
-        Demo: use any registered email / password
+        Don&apos;t have an account?{' '}
+        <button type="button" onClick={() => onNavigate("register")} className="text-[#5B6CFF] font-semibold">Create one</button>
+      </p>
+    </div>
+  );
+}
+
+// ─── Register screen ──────────────────────────────────────────────────────────
+
+function RegisterScreen({ onNavigate, onRegistered, toast }: { onNavigate: (s: Screen) => void; onRegistered: (email: string) => void; toast: (msg: string, color?: string) => void }) {
+  const [form, setForm] = useState({ firstName: "", lastName: "", email: "", password: "", phone: "" });
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const { register } = useAuth();
+
+  const update = (field: string) => (e: React.ChangeEvent<HTMLInputElement>) => setForm((f) => ({ ...f, [field]: e.target.value }));
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (isSubmitting) return;
+    setIsSubmitting(true);
+    try {
+      const res = await register(form);
+      toast(res.message ?? "Registration successful. Please verify your email.", "#22C55E");
+      onRegistered(form.email);
+      onNavigate("verify-email");
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "Registration failed. Please try again.", "#EF4444");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="flex flex-col gap-5 pb-4">
+      <div className="pt-8 flex flex-col items-center gap-2">
+        <div className="w-16 h-16 rounded-2xl flex items-center justify-center text-white font-bold text-2xl" style={{ background:"linear-gradient(135deg,#5B6CFF,#7E57FF)" }}>H</div>
+        <h1 className="text-2xl font-bold text-white" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>Create account</h1>
+        <p className="text-[#A5A9B5] text-sm">Start booking trusted helpers</p>
+      </div>
+
+      <form onSubmit={handleSubmit} className="flex flex-col gap-4 mt-4">
+        <div className="flex flex-col gap-2">
+          <label className="text-xs font-semibold uppercase tracking-[0.08em] text-[#A5A9B5]">First name</label>
+          <input type="text" value={form.firstName} onChange={update("firstName")} placeholder="Aisha" required className="w-full rounded-xl border border-[rgba(255,255,255,0.08)] bg-[#20242D] px-4 py-3 text-sm text-white outline-none placeholder:text-[#A5A9B5] focus:border-[#5B6CFF]" />
+        </div>
+        <div className="flex flex-col gap-2">
+          <label className="text-xs font-semibold uppercase tracking-[0.08em] text-[#A5A9B5]">Last name</label>
+          <input type="text" value={form.lastName} onChange={update("lastName")} placeholder="Khan" required className="w-full rounded-xl border border-[rgba(255,255,255,0.08)] bg-[#20242D] px-4 py-3 text-sm text-white outline-none placeholder:text-[#A5A9B5] focus:border-[#5B6CFF]" />
+        </div>
+        <div className="flex flex-col gap-2">
+          <label className="text-xs font-semibold uppercase tracking-[0.08em] text-[#A5A9B5]">Email</label>
+          <input type="email" value={form.email} onChange={update("email")} placeholder="you@example.com" required className="w-full rounded-xl border border-[rgba(255,255,255,0.08)] bg-[#20242D] px-4 py-3 text-sm text-white outline-none placeholder:text-[#A5A9B5] focus:border-[#5B6CFF]" />
+        </div>
+        <div className="flex flex-col gap-2">
+          <label className="text-xs font-semibold uppercase tracking-[0.08em] text-[#A5A9B5]">Password</label>
+          <input type="password" value={form.password} onChange={update("password")} placeholder="Min 8 chars, 1 upper, 1 number, 1 symbol" required className="w-full rounded-xl border border-[rgba(255,255,255,0.08)] bg-[#20242D] px-4 py-3 text-sm text-white outline-none placeholder:text-[#A5A9B5] focus:border-[#5B6CFF]" />
+        </div>
+        <div className="flex flex-col gap-2">
+          <label className="text-xs font-semibold uppercase tracking-[0.08em] text-[#A5A9B5]">Phone <span className="normal-case tracking-normal text-[#A5A9B5]">(optional)</span></label>
+          <input type="tel" value={form.phone} onChange={update("phone")} placeholder="+91 98765 43210" className="w-full rounded-xl border border-[rgba(255,255,255,0.08)] bg-[#20242D] px-4 py-3 text-sm text-white outline-none placeholder:text-[#A5A9B5] focus:border-[#5B6CFF]" />
+        </div>
+        <button type="submit" disabled={isSubmitting} className="w-full h-12 rounded-2xl font-bold text-white flex items-center justify-center gap-2 active:opacity-80 transition-opacity disabled:opacity-60" style={{ background:"linear-gradient(135deg,#5B6CFF 0%,#7E57FF 100%)" }}>
+          {isSubmitting ? "Creating account…" : "Create Account"}
+        </button>
+      </form>
+
+      <p className="text-center text-[#A5A9B5] text-xs mt-2">
+        Already have an account?{' '}
+        <button type="button" onClick={() => onNavigate("login")} className="text-[#5B6CFF] font-semibold">Sign in</button>
+      </p>
+    </div>
+  );
+}
+
+// ─── OTP verification screen ──────────────────────────────────────────────────
+
+function OTPScreen({ email, onVerified, toast }: { email: string; onVerified: () => void; toast: (msg: string, color?: string) => void }) {
+  const [otp, setOtp] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const { verifyEmail } = useAuth();
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (isSubmitting) return;
+    setIsSubmitting(true);
+    try {
+      await verifyEmail(email, otp);
+      toast("Email verified! Welcome to Helpers.", "#22C55E");
+      onVerified();
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "Verification failed. Please try again.", "#EF4444");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="flex flex-col gap-5 pb-4">
+      <div className="pt-8 flex flex-col items-center gap-2">
+        <div className="w-16 h-16 rounded-2xl flex items-center justify-center text-white font-bold text-2xl" style={{ background:"linear-gradient(135deg,#5B6CFF,#7E57FF)" }}>H</div>
+        <h1 className="text-2xl font-bold text-white" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>Verify your email</h1>
+        <p className="text-[#A5A9B5] text-sm text-center">Enter the 6-digit code sent to<br/><span className="text-white font-semibold">{email}</span></p>
+      </div>
+
+      <form onSubmit={handleSubmit} className="flex flex-col gap-4 mt-4">
+        <div className="flex flex-col gap-2">
+          <label className="text-xs font-semibold uppercase tracking-[0.08em] text-[#A5A9B5]">Verification code</label>
+          <input
+            type="text"
+            inputMode="numeric"
+            maxLength={6}
+            value={otp}
+            onChange={(e) => setOtp(e.target.value.replace(/\D/g, ""))}
+            placeholder="123456"
+            required
+            className="w-full rounded-xl border border-[rgba(255,255,255,0.08)] bg-[#20242D] px-4 py-3 text-sm text-white outline-none placeholder:text-[#A5A9B5] focus:border-[#5B6CFF] text-center tracking-[0.5em]"
+          />
+        </div>
+        <button type="submit" disabled={isSubmitting || otp.length !== 6} className="w-full h-12 rounded-2xl font-bold text-white flex items-center justify-center gap-2 active:opacity-80 transition-opacity disabled:opacity-60" style={{ background:"linear-gradient(135deg,#5B6CFF 0%,#7E57FF 100%)" }}>
+          {isSubmitting ? "Verifying…" : "Verify Email"}
+        </button>
+      </form>
+
+      <p className="text-center text-[#A5A9B5] text-xs mt-2">
+        Didn&apos;t receive it? Check your spam folder or try registering again.
       </p>
     </div>
   );
@@ -341,9 +465,8 @@ function LoginScreen({ onLogin, toast }: { onLogin: (email: string, password: st
 
 // ─── Home screen ──────────────────────────────────────────────────────────────
 
-function HomeScreen({ onNavigate, toast }: { onNavigate: (s: Screen, id?: string) => void; toast: (msg: string, color?: string) => void }) {
+function HomeScreen({ onNavigate, toast, user }: { onNavigate: (s: Screen, id?: string) => void; toast: (msg: string, color?: string) => void; user: { firstName?: string; lastName?: string; email?: string } | null }) {
   const [promoIdx, setPromoIdx] = useState(0);
-  const loyaltyPts = 1240;
   const { categories, isLoading: categoriesLoading, error: categoriesError, refetch } = useCategories();
 
   useEffect(() => {
@@ -352,6 +475,8 @@ function HomeScreen({ onNavigate, toast }: { onNavigate: (s: Screen, id?: string
   }, []);
 
   const promo = promos[promoIdx];
+  const displayName = user ? [user.firstName, user.lastName].filter(Boolean).join(" ") : "";
+  const greeting = displayName ? `Hello, ${displayName}` : "Welcome to Helpers";
 
   const handlePromoCta = () => {
     if (promoIdx === 0) toast("Promo code FIRST30 applied! 30% off your first booking.", "#5B6CFF");
@@ -365,16 +490,15 @@ function HomeScreen({ onNavigate, toast }: { onNavigate: (s: Screen, id?: string
       {/* Header */}
       <div className="flex items-start justify-between pt-2">
         <div>
-          <button onClick={() => toast("Location updated to Bandra West, Mumbai")} className="flex items-center gap-1.5 text-[#A5A9B5] text-sm mb-0.5">
+          <button onClick={() => toast("Location services coming soon")} className="flex items-center gap-1.5 text-[#A5A9B5] text-sm mb-0.5">
             <MapPin size={13} className="text-[#5B6CFF]" />
-            <span>Bandra West, Mumbai</span>
+            <span>Mumbai, India</span>
             <ChevronRight size={13} />
           </button>
-          <h1 className="text-xl font-bold text-white" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>Good morning, Rahul 👋</h1>
+          <h1 className="text-xl font-bold text-white" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>{greeting}</h1>
         </div>
-        <button onClick={() => toast("You have 3 new notifications", "#5B6CFF")} className="relative w-10 h-10 rounded-full bg-[#20242D] flex items-center justify-center active:scale-90 transition-transform">
+        <button onClick={() => toast("Notifications coming soon")} className="relative w-10 h-10 rounded-full bg-[#20242D] flex items-center justify-center active:scale-90 transition-transform">
           <Bell size={18} className="text-white" />
-          <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-[#5B6CFF]" />
         </button>
       </div>
 
@@ -411,24 +535,6 @@ function HomeScreen({ onNavigate, toast }: { onNavigate: (s: Screen, id?: string
             <button key={i} onClick={() => setPromoIdx(i)} className="rounded-full transition-all duration-300" style={{ width:i===promoIdx?20:6, height:6, background:i===promoIdx?"#5B6CFF":"#20242D" }} />
           ))}
         </div>
-      </div>
-
-      {/* Loyalty card */}
-      <div className="rounded-2xl p-4 flex items-center gap-4" style={{ background:"linear-gradient(135deg,#20242D 0%,#1a1d26 100%)", border:"1px solid rgba(91,108,255,0.25)" }}>
-        <div className="w-12 h-12 rounded-2xl flex items-center justify-center shrink-0" style={{ background:"rgba(91,108,255,0.2)" }}>
-          <Award size={22} className="text-[#5B6CFF]" />
-        </div>
-        <div className="flex-1 min-w-0">
-          <p className="text-xs text-[#A5A9B5] font-medium mb-0.5">Helpers Coins</p>
-          <p className="text-white font-bold text-base" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>{loyaltyPts.toLocaleString()} pts</p>
-          <div className="w-full bg-[#2E3340] rounded-full h-1.5 mt-1.5">
-            <div className="h-1.5 rounded-full" style={{ width:`${(loyaltyPts/2000)*100}%`, background:"linear-gradient(90deg,#5B6CFF,#7E57FF)" }} />
-          </div>
-          <p className="text-[10px] text-[#A5A9B5] mt-1">760 pts to your next reward</p>
-        </div>
-        <button onClick={() => toast("🎁 Reward redeemed! ₹100 off your next booking.", "#5B6CFF")} className="shrink-0 flex items-center gap-1 text-[#5B6CFF] text-xs font-bold active:scale-90 transition-transform">
-          <Gift size={13} />Redeem
-        </button>
       </div>
 
       {/* Services */}
@@ -470,49 +576,6 @@ function HomeScreen({ onNavigate, toast }: { onNavigate: (s: Screen, id?: string
         )}
       </div>
 
-      {/* Flash Deals */}
-      <div>
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-2">
-            <Flame size={16} className="text-[#F59E0B]" />
-            <h2 className="font-bold text-white" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>Flash Deals</h2>
-          </div>
-          <button onClick={() => onNavigate("explore")} className="text-[#5B6CFF] text-sm font-semibold">View all</button>
-        </div>
-        <div className="flex gap-3 overflow-x-auto pb-1" style={{ scrollbarWidth:"none" }}>
-          {flashDeals.map((deal) => <FlashDealCard key={deal.id} deal={deal} onNavigate={onNavigate} />)}
-        </div>
-      </div>
-
-      {/* Upcoming booking reminder */}
-      <button onClick={() => onNavigate("bookings")} className="rounded-2xl p-4 flex items-center gap-4 w-full text-left active:scale-[0.98] transition-transform" style={{ background:"rgba(91,108,255,0.1)", border:"1px solid rgba(91,108,255,0.3)" }}>
-        <div className="w-10 h-10 rounded-xl bg-[#5B6CFF] flex items-center justify-center shrink-0"><Clock size={18} className="text-white" /></div>
-        <div className="flex-1 min-w-0">
-          <p className="text-white font-bold text-sm" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>Deep Cleaning — Tomorrow</p>
-          <p className="text-[#A5A9B5] text-xs mt-0.5">Arjun Mehta · 10:00 AM · Bandra</p>
-        </div>
-        <ChevronRight size={16} className="text-[#5B6CFF] shrink-0" />
-      </button>
-
-      {/* Book Again */}
-      <div>
-        <div className="flex items-center gap-2 mb-3">
-          <Repeat2 size={15} className="text-[#A5A9B5]" />
-          <h2 className="font-bold text-white" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>Book Again</h2>
-        </div>
-        <div className="flex gap-3">
-          {recentlyBooked.map((rb) => (
-            <button key={rb.id} onClick={() => onNavigate("detail", rb.providerId)} className="flex-1 bg-[#171A21] rounded-2xl overflow-hidden flex flex-col active:scale-95 transition-transform">
-              <div className="h-20 bg-[#20242D]"><img src={rb.img} alt={rb.label} className="w-full h-full object-cover" /></div>
-              <div className="p-2.5">
-                <p className="text-white font-bold text-xs" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>{rb.label}</p>
-                <p className="text-[#A5A9B5] text-[10px] mt-0.5">{rb.provider}</p>
-              </div>
-            </button>
-          ))}
-        </div>
-      </div>
-
       {/* Top Helpers */}
       <div>
         <div className="flex items-center justify-between mb-3">
@@ -542,23 +605,6 @@ function HomeScreen({ onNavigate, toast }: { onNavigate: (s: Screen, id?: string
                 <div className="flex gap-0.5 shrink-0">{Array.from({length:t.rating}).map((_,i)=><Star key={i} size={10} fill="#F59E0B" stroke="none"/>)}</div>
               </div>
               <p className="text-[#A5A9B5] text-xs leading-relaxed">&ldquo;{t.text}&rdquo;</p>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Live activity */}
-      <div className="bg-[#171A21] rounded-2xl p-4">
-        <div className="flex items-center gap-2 mb-3">
-          <span className="w-2 h-2 rounded-full bg-[#22C55E] animate-pulse inline-block" />
-          <h3 className="font-bold text-white text-sm" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>Live in your area</h3>
-        </div>
-        <div className="flex flex-col gap-2.5">
-          {liveActivity.map(({ msg, time, dot }) => (
-            <div key={msg} className="flex items-start gap-3">
-              <span className="w-1.5 h-1.5 rounded-full mt-1.5 shrink-0" style={{ background:dot }} />
-              <p className="text-[#A5A9B5] text-xs leading-snug flex-1">{msg}</p>
-              <span className="text-[10px] text-[#A5A9B5] shrink-0">{time}</span>
             </div>
           ))}
         </div>
@@ -829,7 +875,6 @@ function BookingScreen({
 }) {
   const { addresses, isLoading: addressesLoading, error: addressesError, refetch } = useAddresses();
   const { service, isLoading: serviceLoading, error: serviceError, refetch: refetchService } = useService(serviceId);
-  const [qty, setQty] = useState(1);
   const [selectedDate, setSelectedDate] = useState("12 Jul");
   const [selectedTime, setSelectedTime] = useState("10:00 AM");
   const [promoInput, setPromoInput] = useState("");
@@ -842,7 +887,7 @@ function BookingScreen({
 
   const servicePrice = typeof service?.price === "number" ? service.price : 0;
   const discount = promoApplied ? 180 : 0;
-  const displayTotal = Math.max(0, servicePrice * qty + 49 - discount);
+  const displayTotal = Math.max(0, servicePrice + 49 - discount);
 
   const selectedAddress = addresses.find((a) => a.id === selectedAddressId) ?? null;
 
@@ -944,19 +989,6 @@ function BookingScreen({
         </div>
       </div>
 
-      {/* Quantity */}
-      <div className="bg-[#171A21] rounded-2xl p-4 flex items-center justify-between">
-        <div>
-          <p className="font-bold text-white" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>Hours / Sessions</p>
-          <p className="text-[#A5A9B5] text-sm">Price determined at confirmation</p>
-        </div>
-        <div className="flex items-center gap-4">
-          <button onClick={() => setQty(Math.max(1, qty-1))} className="w-9 h-9 rounded-xl bg-[#20242D] flex items-center justify-center active:scale-90 transition-transform"><Minus size={16} className="text-white"/></button>
-          <span className="text-white font-bold text-lg w-5 text-center">{qty}</span>
-          <button onClick={() => setQty(qty+1)} className="w-9 h-9 rounded-xl bg-[#5B6CFF] flex items-center justify-center active:scale-90 transition-transform"><Plus size={16} className="text-white"/></button>
-        </div>
-      </div>
-
       {/* Address */}
       <div className="bg-[#171A21] rounded-2xl p-4">
         <div className="flex items-center justify-between mb-2">
@@ -1018,7 +1050,7 @@ function BookingScreen({
         ) : servicePrice > 0 ? (
           <>
             {[
-              { label:`Service × ${qty}`, value:`₹${(servicePrice * qty).toLocaleString()}`, green:false },
+              { label:"Service", value:`₹${servicePrice.toLocaleString()}`, green:false },
               { label:"Platform fee",     value:"₹49",  green:false },
               ...(promoApplied ? [{ label:"Discount (FIRST30)", value:"−₹180", green:true }] : []),
             ].map(({ label, value, green }) => (
@@ -2003,23 +2035,27 @@ function BookingDetailsScreen({
 // ─── Profile screen ───────────────────────────────────────────────────────────
 
 function ProfileScreen({ onNavigate, toast }: { onNavigate: (s: Screen) => void; toast: (msg: string, color?: string) => void }) {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const fullName = user ? `${user.firstName} ${user.lastName}`.trim() : "";
   const initial = fullName ? fullName.charAt(0).toUpperCase() : "?";
-  const stats = [
-    { label:"Bookings", value:"14", action: () => onNavigate("bookings") },
-    { label:"Saved",    value:"6",  action: () => toast("Opening saved helpers…", "#5B6CFF") },
-    { label:"Reviews",  value:"9",  action: () => toast("Opening your reviews…", "#F59E0B") },
-  ];
   const menuItems = [
     { icon:"📍", label:"Saved Addresses",   action: () => onNavigate("addresses") },
     { icon:"💳", label:"Payment Methods",   action: () => toast("Manage payment methods") },
-    { icon:"🔔", label:"Notifications",     action: () => toast("You have 3 new notifications", "#5B6CFF") },
+    { icon:"🔔", label:"Notifications",     action: () => toast("Notifications coming soon") },
     { icon:"🛡️", label:"Privacy & Security",action: () => toast("Privacy settings opening…") },
     { icon:"💬", label:"Help & Support",    action: () => toast("Connecting to support…", "#22C55E") },
     { icon:"⭐", label:"Rate the App",      action: () => toast("Thanks for rating Helpers! ⭐⭐⭐⭐⭐", "#F59E0B") },
-    { icon:"🚪", label:"Sign Out",          action: () => toast("Signed out successfully") },
+    { icon:"🚪", label:"Sign Out",          action: handleSignOut },
   ];
+
+  const handleSignOut = async () => {
+    try {
+      await logout();
+      toast("Signed out successfully", "#22C55E");
+    } catch {
+      toast("Signed out", "#5B6CFF");
+    }
+  };
 
   return (
     <div className="flex flex-col gap-5 pb-4">
@@ -2034,15 +2070,6 @@ function ProfileScreen({ onNavigate, toast }: { onNavigate: (s: Screen) => void;
           <h2 className="text-xl font-bold text-white" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>{fullName || "User"}</h2>
           <p className="text-[#A5A9B5] text-sm">{user?.email ?? ""}</p>
         </div>
-      </div>
-
-      <div className="grid grid-cols-3 gap-3">
-        {stats.map(({ label, value, action }) => (
-          <button key={label} onClick={action} className="bg-[#171A21] rounded-2xl p-4 text-center hover:bg-[#1E2229] active:scale-95 transition-all">
-            <p className="text-2xl font-bold text-white" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>{value}</p>
-            <p className="text-[#A5A9B5] text-xs mt-0.5">{label}</p>
-          </button>
-        ))}
       </div>
 
       {/* Membership */}
@@ -2144,9 +2171,10 @@ export default function App() {
   const [bookingDetailId, setBookingDetailId] = useState<string | null>(null);
   const [confirmData, setConfirmData] = useState<BookingData | null>(null);
   const [toasts, setToasts]           = useState<{ id:number; msg:string; color?:string }[]>([]);
+  const [registerEmail, setRegisterEmail] = useState("");
   const toastId = useState(0);
 
-  const { isAuthenticated, isLoading, login } = useAuth();
+  const { isAuthenticated, isLoading, login, logout, user } = useAuth();
 
   const pushToast = (msg: string, color?: string) => {
     const id = ++toastId[0];
@@ -2165,11 +2193,18 @@ export default function App() {
 
   const tabScreens: Screen[] = ["home","explore","bookings","profile"];
   const activeTab = tabScreens.includes(screen) ? screen : prevScreen;
-  const showBottomNav = !["detail","booking","addresses","booking-detail"].includes(screen);
+  const showBottomNav = !["detail","booking","addresses","booking-detail","register","verify-email"].includes(screen);
 
   const openBookingDetail = (id: string) => {
     setBookingDetailId(id);
     navigate("booking-detail");
+  };
+
+  const handleLogout = async () => {
+    await logout();
+    setScreen("home");
+    setConfirmData(null);
+    setBookingDetailId(null);
   };
 
   return (
@@ -2177,13 +2212,24 @@ export default function App() {
       <div className="relative flex flex-col overflow-hidden shadow-2xl" style={{ width:"min(100vw,390px)", height:"min(100vh,844px)", background:"#0F1115", borderRadius:"clamp(0px,2.5rem,2.5rem)" }}>
 
         {!isAuthenticated && !isLoading ? (
-          <LoginScreen
-            onLogin={async (email: string, password: string) => {
-              await login(email, password);
-              setScreen("home");
-            }}
-            toast={pushToast}
-          />
+          screen === "register" ? (
+            <RegisterScreen
+              onNavigate={(s) => navigate(s === "login" ? "login" : s)}
+              onRegistered={(email) => setRegisterEmail(email)}
+              toast={pushToast}
+            />
+          ) : screen === "verify-email" ? (
+            <OTPScreen email={registerEmail} onVerified={() => navigate("home")} toast={pushToast} />
+          ) : (
+            <LoginScreen
+              onLogin={async (email: string, password: string) => {
+                await login(email, password);
+                setScreen("home");
+              }}
+              onNavigate={(s) => navigate(s === "register" ? "register" : s)}
+              toast={pushToast}
+            />
+          )
         ) : (
           <>
             {/* Status bar */}
@@ -2204,7 +2250,7 @@ export default function App() {
 
             {/* Screen content */}
             <div className="flex-1 overflow-y-auto px-5 min-h-0" style={{ scrollbarWidth:"none" }}>
-              {screen === "home" && <HomeScreen onNavigate={navigate} toast={pushToast} />}
+              {screen === "home" && <HomeScreen onNavigate={navigate} toast={pushToast} user={user} />}
               {screen === "explore" && <ExploreScreen onNavigate={navigate} toast={pushToast} />}
               {screen === "detail" && (
                 <DetailScreen
@@ -2235,7 +2281,7 @@ export default function App() {
               {screen === "booking-detail" && bookingDetailId && (
                 <BookingDetailsScreen
                   bookingId={bookingDetailId}
-                  onBack={onBack}
+                  onBack={goBack}
                   toast={pushToast}
                 />
               )}
