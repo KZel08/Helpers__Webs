@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useCategories } from "../hooks/useCategories";
 import { useServices, useService } from "../hooks/useServices";
 import { useAddresses } from "../hooks/useAddresses";
+import { useBookings } from "../hooks/useBookings";
 import type { ServiceData, AddressData, CreateAddressRequest, UpdateAddressRequest, BookingData } from "../lib/api";
 import { bookingsApi } from "../lib/api";
 import {
@@ -60,17 +61,6 @@ interface Provider {
   category: string;
 }
 
-interface Booking {
-  id: string;
-  service: string;
-  provider: string;
-  date: string;
-  time: string;
-  status: "upcoming" | "completed" | "cancelled";
-  price: string;
-  img: string;
-}
-
 // ─── Static data ──────────────────────────────────────────────────────────────
 
 const ALL_PROVIDERS: Provider[] = [
@@ -80,12 +70,6 @@ const ALL_PROVIDERS: Provider[] = [
   { id:"4", name:"Sunita Patel", role:"AC Repair Technician",    rating:4.9, reviews:98,  price:"₹699", img:"https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=200&h=200&fit=crop&auto=format", badge:"New",       tags:["Certified","2+ yrs"], category:"AC Repair"   },
   { id:"5", name:"Deepak Nair",  role:"Electrician & Wiring",    rating:4.6, reviews:155, price:"₹399", img:"https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=200&h=200&fit=crop&auto=format",               tags:["Verified","4+ yrs"], category:"Electrical"  },
   { id:"6", name:"Meena Joshi",  role:"Painting & Wall Expert",  rating:4.8, reviews:87,  price:"₹799", img:"https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=200&h=200&fit=crop&auto=format",               tags:["Certified","6+ yrs"], category:"Painting"    },
-];
-
-const INITIAL_BOOKINGS: Booking[] = [
-  { id:"b1", service:"Deep Cleaning",        provider:"Arjun Mehta", date:"12 Jul 2026", time:"10:00 AM", status:"upcoming",   price:"₹599", img:"https://images.unsplash.com/photo-1581578731548-c64695cc6952?w=120&h=120&fit=crop&auto=format" },
-  { id:"b2", service:"Salon – Hair & Nails", provider:"Priya Sharma",date:"5 Jul 2026",  time:"2:30 PM",  status:"completed",  price:"₹449", img:"https://images.unsplash.com/photo-1560066984-138dadb4c035?w=120&h=120&fit=crop&auto=format" },
-  { id:"b3", service:"Plumbing – Pipe Fix",  provider:"Ravi Kumar",  date:"29 Jun 2026", time:"11:00 AM", status:"cancelled",  price:"₹349", img:"https://images.unsplash.com/photo-1607472586893-edb57bdc0e39?w=120&h=120&fit=crop&auto=format" },
 ];
 
 const flashDeals = [
@@ -174,14 +158,19 @@ function getCategoryStyle(name: string) {
 
 // ─── Shared sub-components ────────────────────────────────────────────────────
 
-function StatusPill({ status }: { status: Booking["status"] }) {
-  const map = {
-    upcoming:  { label:"Upcoming",  cls:"text-[#5B6CFF] bg-[rgba(91,108,255,0.15)]"  },
-    completed: { label:"Completed", cls:"text-[#22C55E] bg-[rgba(34,197,94,0.15)]"   },
-    cancelled: { label:"Cancelled", cls:"text-[#EF4444] bg-[rgba(239,68,68,0.15)]"   },
+// Backend status → display mapping for BookingsScreen
+type ApiBookingStatus = "PENDING" | "ACCEPTED" | "ONGOING" | "COMPLETED" | "CANCELLED";
+
+function BookingStatusPill({ status }: { status: string }) {
+  const map: Record<string, { label: string; cls: string }> = {
+    PENDING:   { label: "Pending",   cls: "text-[#F59E0B] bg-[rgba(245,158,11,0.15)]"  },
+    ACCEPTED:  { label: "Accepted",  cls: "text-[#5B6CFF] bg-[rgba(91,108,255,0.15)]"  },
+    ONGOING:   { label: "Ongoing",   cls: "text-[#06B6D4] bg-[rgba(6,182,212,0.15)]"   },
+    COMPLETED: { label: "Completed", cls: "text-[#22C55E] bg-[rgba(34,197,94,0.15)]"   },
+    CANCELLED: { label: "Cancelled", cls: "text-[#EF4444] bg-[rgba(239,68,68,0.15)]"   },
   };
-  const { label, cls } = map[status];
-  return <span className={`text-xs font-semibold px-2.5 py-1 rounded-full shrink-0 ${cls}`}>{label}</span>;
+  const entry = map[status] ?? { label: status, cls: "text-[#A5A9B5] bg-[rgba(165,169,181,0.15)]" };
+  return <span className={`text-xs font-semibold px-2.5 py-1 rounded-full shrink-0 ${entry.cls}`}>{entry.label}</span>;
 }
 
 function StarRow({ rating, reviews }: { rating: number; reviews: number }) {
@@ -1405,73 +1394,192 @@ function AddressScreen({ onBack, toast }: { onBack: () => void; toast: (msg: str
 
 // ─── Bookings screen ──────────────────────────────────────────────────────────
 
+/** PENDING, ACCEPTED, ONGOING → upcoming tab; COMPLETED, CANCELLED → past tab */
+const UPCOMING_STATUSES: ApiBookingStatus[] = ["PENDING", "ACCEPTED", "ONGOING"];
+
+function formatBookingDate(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return iso;
+  return d.toLocaleString("en-IN", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
+}
+
+function BookingCard({
+  booking,
+  onCancel,
+  isCancelling,
+  toast,
+}: {
+  booking: BookingData;
+  onCancel: (id: string) => void;
+  isCancelling: boolean;
+  toast: (msg: string, color?: string) => void;
+}) {
+  const helperName = `${booking.helper.user.firstName} ${booking.helper.user.lastName}`.trim();
+  const scheduledDisplay = formatBookingDate(booking.scheduledAt ?? booking.bookingDate);
+  const amountDisplay = typeof booking.totalAmount === "number" ? `₹${booking.totalAmount.toLocaleString()}` : "—";
+  const isPending = booking.status === "PENDING";
+
+  return (
+    <div className="bg-[#171A21] rounded-2xl p-4">
+      {/* Header row */}
+      <div className="flex items-start justify-between gap-2 mb-3">
+        <div className="flex-1 min-w-0">
+          <p className="font-bold text-white text-sm leading-snug truncate" style={{ fontFamily: "'Plus Jakarta Sans',sans-serif" }}>
+            {booking.service.title}
+          </p>
+          <p className="text-[#A5A9B5] text-xs mt-0.5 truncate">
+            {helperName || "Helper"}
+          </p>
+        </div>
+        <BookingStatusPill status={booking.status} />
+      </div>
+
+      {/* Date / time */}
+      <div className="flex items-center gap-1.5 text-xs text-[#A5A9B5] mb-1">
+        <CalendarCheck size={11} className="shrink-0" />
+        <span>{scheduledDisplay}</span>
+      </div>
+
+      {/* Payment status badge */}
+      {booking.payment?.status && (
+        <div className="flex items-center gap-1.5 text-xs text-[#A5A9B5]">
+          <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: booking.payment.status === "PAID" ? "#22C55E" : "#F59E0B" }} />
+          <span>Payment: {booking.payment.status}</span>
+        </div>
+      )}
+
+      {/* Footer */}
+      <div className="flex items-center justify-between mt-4 pt-3 border-t border-[rgba(255,255,255,0.06)]">
+        <span className="text-white font-bold">{amountDisplay}</span>
+        <div className="flex gap-2">
+          {isPending && (
+            <button
+              onClick={() => onCancel(booking.id)}
+              disabled={isCancelling}
+              className="text-xs font-semibold text-[#EF4444] bg-[rgba(239,68,68,0.1)] px-3 py-1.5 rounded-xl active:scale-95 transition-transform disabled:opacity-50"
+            >
+              {isCancelling ? "Cancelling…" : "Cancel"}
+            </button>
+          )}
+          <button
+            onClick={() => toast(`Booking ID: ${booking.id.slice(0, 8)}… · ${scheduledDisplay}`)}
+            className="text-xs font-semibold text-white bg-[#20242D] px-3 py-1.5 rounded-xl active:scale-95 transition-transform"
+          >
+            View Details
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function BookingSkeletonCard() {
+  return (
+    <div className="bg-[#171A21] rounded-2xl p-4 flex flex-col gap-3 animate-pulse">
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex-1 flex flex-col gap-2">
+          <div className="h-4 bg-[#20242D] rounded w-3/4" />
+          <div className="h-3 bg-[#20242D] rounded w-1/2" />
+        </div>
+        <div className="h-6 w-16 bg-[#20242D] rounded-full" />
+      </div>
+      <div className="h-3 bg-[#20242D] rounded w-2/5" />
+      <div className="flex items-center justify-between pt-3 border-t border-[rgba(255,255,255,0.06)]">
+        <div className="h-4 bg-[#20242D] rounded w-12" />
+        <div className="h-7 bg-[#20242D] rounded-xl w-24" />
+      </div>
+    </div>
+  );
+}
+
 function BookingsScreen({ onNavigate, toast }: { onNavigate: (s: Screen, id?: string) => void; toast: (msg: string, color?: string) => void }) {
-  const [tab, setTab] = useState<"upcoming"|"past">("upcoming");
-  const [bookings, setBookings] = useState<Booking[]>(INITIAL_BOOKINGS);
+  const [tab, setTab] = useState<"upcoming" | "past">("upcoming");
+  const [cancellingId, setCancellingId] = useState<string | null>(null);
+  const { bookings, isLoading, error, refetch, cancelBooking } = useBookings("customer");
 
-  const cancelBooking = (id: string) => {
-    setBookings((bs) => bs.map((b) => b.id === id ? { ...b, status:"cancelled" } : b));
-    toast("Booking cancelled. Refund will be processed in 3–5 days.", "#EF4444");
+  const upcoming = bookings.filter((b) => (UPCOMING_STATUSES as string[]).includes(b.status));
+  const past     = bookings.filter((b) => !(UPCOMING_STATUSES as string[]).includes(b.status));
+  const filtered = tab === "upcoming" ? upcoming : past;
+
+  const handleCancel = async (id: string) => {
+    setCancellingId(id);
+    try {
+      await cancelBooking(id);
+      toast("Booking cancelled.", "#EF4444");
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "Failed to cancel booking.", "#EF4444");
+    } finally {
+      setCancellingId(null);
+    }
   };
-
-  const filtered = tab === "upcoming"
-    ? bookings.filter((b) => b.status === "upcoming")
-    : bookings.filter((b) => b.status !== "upcoming");
 
   return (
     <div className="flex flex-col gap-5 pb-4">
       <div className="pt-2">
-        <h2 className="text-xl font-bold text-white" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>My Bookings</h2>
+        <h2 className="text-xl font-bold text-white" style={{ fontFamily: "'Plus Jakarta Sans',sans-serif" }}>My Bookings</h2>
         <p className="text-[#A5A9B5] text-sm mt-0.5">Track and manage your service history</p>
       </div>
 
+      {/* Tab switcher */}
       <div className="flex bg-[#20242D] rounded-2xl p-1">
-        {(["upcoming","past"] as const).map((t) => (
-          <button key={t} onClick={() => setTab(t)} className={`flex-1 py-2.5 rounded-xl text-sm font-semibold transition-colors capitalize ${tab===t?"bg-[#5B6CFF] text-white":"text-[#A5A9B5]"}`}>{t}</button>
+        {(["upcoming", "past"] as const).map((t) => (
+          <button
+            key={t}
+            onClick={() => setTab(t)}
+            className={`flex-1 py-2.5 rounded-xl text-sm font-semibold transition-colors capitalize ${
+              tab === t ? "bg-[#5B6CFF] text-white" : "text-[#A5A9B5]"
+            }`}
+          >
+            {t}
+          </button>
         ))}
       </div>
 
-      <div className="flex flex-col gap-3">
-        {filtered.length === 0 && (
-          <div className="text-center py-12">
-            <CalendarCheck size={48} className="text-[#A5A9B5] mx-auto mb-3 opacity-30" />
-            <p className="text-[#A5A9B5]">No {tab} bookings</p>
-            {tab === "upcoming" && (
-              <button onClick={() => onNavigate("explore")} className="mt-3 bg-[#5B6CFF] text-white text-sm font-bold px-5 py-2.5 rounded-xl">Book a Service</button>
-            )}
-          </div>
-        )}
-        {filtered.map((b) => (
-          <div key={b.id} className="bg-[#171A21] rounded-2xl p-4">
-            <div className="flex items-start gap-4">
-              <img src={b.img} alt={b.service} className="w-16 h-16 rounded-xl object-cover bg-[#20242D] shrink-0" />
-              <div className="flex-1 min-w-0">
-                <div className="flex items-start justify-between mb-1 gap-2">
-                  <p className="font-bold text-white text-sm leading-snug" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>{b.service}</p>
-                  <StatusPill status={b.status} />
-                </div>
-                <p className="text-[#A5A9B5] text-xs mb-2">{b.provider}</p>
-                <div className="flex items-center gap-3 text-xs text-[#A5A9B5]">
-                  <span className="flex items-center gap-1"><CalendarCheck size={11}/>{b.date}</span>
-                  <span className="flex items-center gap-1"><Clock size={11}/>{b.time}</span>
-                </div>
-              </div>
-            </div>
-            <div className="flex items-center justify-between mt-4 pt-3 border-t border-[rgba(255,255,255,0.06)]">
-              <span className="text-white font-bold">{b.price}</span>
-              <div className="flex gap-2">
-                {b.status === "upcoming" && (
-                  <button onClick={() => cancelBooking(b.id)} className="text-xs font-semibold text-[#EF4444] bg-[rgba(239,68,68,0.1)] px-3 py-1.5 rounded-xl active:scale-95 transition-transform">Cancel</button>
-                )}
-                {b.status === "completed" && (
-                  <button onClick={() => toast("Rating submitted! Thanks for your feedback.", "#F59E0B")} className="text-xs font-semibold text-[#5B6CFF] bg-[rgba(91,108,255,0.15)] px-3 py-1.5 rounded-xl active:scale-95 transition-transform">Rate Helper</button>
-                )}
-                <button onClick={() => toast(`Booking details for ${b.service} on ${b.date}.`)} className="text-xs font-semibold text-white bg-[#20242D] px-3 py-1.5 rounded-xl active:scale-95 transition-transform">View Details</button>
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
+      {/* Content area */}
+      {isLoading ? (
+        <div className="flex flex-col gap-3">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <BookingSkeletonCard key={i} />
+          ))}
+        </div>
+      ) : error ? (
+        <div className="rounded-2xl border border-[rgba(239,68,68,0.35)] bg-[rgba(239,68,68,0.08)] p-6 text-center">
+          <CalendarCheck size={36} className="text-[#EF4444] mx-auto mb-3 opacity-60" />
+          <p className="text-[#FCA5A5] text-sm mb-3">{error}</p>
+          <button
+            onClick={() => refetch()}
+            className="text-[#5B6CFF] text-sm font-semibold bg-[rgba(91,108,255,0.12)] px-4 py-2 rounded-xl active:scale-95 transition-transform"
+          >
+            Retry
+          </button>
+        </div>
+      ) : filtered.length === 0 ? (
+        <div className="text-center py-12">
+          <CalendarCheck size={48} className="text-[#A5A9B5] mx-auto mb-3 opacity-30" />
+          <p className="text-[#A5A9B5]">No {tab} bookings</p>
+          {tab === "upcoming" && (
+            <button
+              onClick={() => onNavigate("explore")}
+              className="mt-3 bg-[#5B6CFF] text-white text-sm font-bold px-5 py-2.5 rounded-xl active:scale-95 transition-transform"
+            >
+              Book a Service
+            </button>
+          )}
+        </div>
+      ) : (
+        <div className="flex flex-col gap-3">
+          {filtered.map((b) => (
+            <BookingCard
+              key={b.id}
+              booking={b}
+              onCancel={handleCancel}
+              isCancelling={cancellingId === b.id}
+              toast={toast}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
