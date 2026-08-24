@@ -3,7 +3,7 @@ import { useCategories } from "../hooks/useCategories";
 import { useServices, useService } from "../hooks/useServices";
 import { useAddresses } from "../hooks/useAddresses";
 import { useBookings } from "../hooks/useBookings";
-import { useAdmin } from "../hooks/useAdmin";
+import { useAdminStats, useAdminUsers, useAdminBookings, useAdminCategories, useAdminServiceRequests } from "../hooks/useAdmin";
 import { useHelperProfile } from "../hooks/useHelperProfile";
 import { useHelperServiceRequests } from "../hooks/useHelperServiceRequests";
 import { useAuth } from "../contexts/AuthContext";
@@ -2957,64 +2957,331 @@ function AdminDashboardScreen({ onNavigate, toast }: { onNavigate: (s: Screen, i
   );
 }
 
-function AdminUsersScreen({ onBack, toast }: { onBack: () => void; toast: (msg: string, color?: string) => void }) {
+function AdminUsersScreen({ onBack, toast: _toast }: { onBack: () => void; toast: (msg: string, color?: string) => void }) {
   const [page, setPage] = useState(1);
-  const limit = 10;
+  const limit = 20;
   const { users, total, isLoading, error, refetch } = useAdminUsers(page, limit);
   const totalPages = Math.max(1, Math.ceil(total / limit));
 
+  // ── client-side search & role filter (backend has no search param) ──
+  const [search, setSearch] = useState("");
+  const [roleFilter, setRoleFilter] = useState<"ALL" | "CUSTOMER" | "HELPER" | "ADMIN">("ALL");
+  const [detailUser, setDetailUser] = useState<AdminUserData | null>(null);
+
+  const filtered = users.filter((u) => {
+    const q = search.toLowerCase();
+    const matchSearch =
+      !q ||
+      u.firstName.toLowerCase().includes(q) ||
+      u.lastName.toLowerCase().includes(q) ||
+      u.email.toLowerCase().includes(q);
+    const matchRole = roleFilter === "ALL" || u.role === roleFilter;
+    return matchSearch && matchRole;
+  });
+
+  const roleColors: Record<string, { bg: string; text: string; avatarBg: string }> = {
+    ADMIN:    { bg: "rgba(245,158,11,0.15)",  text: "#FBBF24", avatarBg: "rgba(245,158,11,0.25)"  },
+    HELPER:   { bg: "rgba(34,197,94,0.15)",   text: "#22C55E", avatarBg: "rgba(34,197,94,0.25)"   },
+    CUSTOMER: { bg: "rgba(91,108,255,0.15)",  text: "#5B6CFF", avatarBg: "rgba(91,108,255,0.25)"  },
+  };
+
+  const getRoleStyle = (role: string) => roleColors[role] ?? roleColors.CUSTOMER;
+
+  const formatDate = (iso: string) => {
+    const d = new Date(iso);
+    return isNaN(d.getTime())
+      ? iso
+      : d.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
+  };
+
+  const roleTabs = ["ALL", "CUSTOMER", "HELPER", "ADMIN"] as const;
+
   return (
     <div className="flex flex-col gap-4 pb-4 pt-2">
+      {/* ── Header ── */}
       <div className="flex items-center gap-4">
-        <button onClick={onBack} className="w-10 h-10 rounded-full bg-[#20242D] flex items-center justify-center active:scale-90 transition-transform">
+        <button
+          id="admin-users-back-btn"
+          onClick={onBack}
+          className="w-10 h-10 rounded-full bg-[#20242D] flex items-center justify-center active:scale-90 transition-transform"
+        >
           <ArrowLeft size={18} className="text-white" />
         </button>
-        <h2 className="font-bold text-white text-lg" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>Users</h2>
+        <div className="flex-1 min-w-0">
+          <h2 className="font-bold text-white text-lg" style={{ fontFamily: "'Plus Jakarta Sans',sans-serif" }}>
+            Users
+          </h2>
+          {!isLoading && !error && (
+            <p className="text-[#A5A9B5] text-xs">
+              {total.toLocaleString()} total · showing {filtered.length} on this page
+            </p>
+          )}
+        </div>
+        <button
+          id="admin-users-refresh-btn"
+          onClick={refetch}
+          className="text-[#5B6CFF] text-xs font-semibold bg-[rgba(91,108,255,0.10)] px-3 py-1.5 rounded-xl active:scale-95 transition-transform"
+        >
+          Refresh
+        </button>
       </div>
 
+      {/* ── Search ── */}
+      <div className="relative">
+        <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#A5A9B5] pointer-events-none" />
+        <input
+          id="admin-users-search"
+          type="text"
+          placeholder="Search by name or email…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="w-full rounded-xl border border-[rgba(255,255,255,0.08)] bg-[#171A21] pl-9 pr-3 py-2.5 text-sm text-white outline-none placeholder:text-[#A5A9B5] focus:border-[#5B6CFF] transition-colors"
+        />
+        {search && (
+          <button
+            onClick={() => setSearch("")}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-[#A5A9B5] hover:text-white"
+          >
+            <X size={14} />
+          </button>
+        )}
+      </div>
+
+      {/* ── Role filter tabs ── */}
+      <div className="flex gap-2 overflow-x-auto pb-0.5 scrollbar-none">
+        {roleTabs.map((tab) => (
+          <button
+            key={tab}
+            id={`admin-users-tab-${tab.toLowerCase()}`}
+            onClick={() => { setRoleFilter(tab); setPage(1); }}
+            className={`shrink-0 px-3 py-1.5 rounded-xl text-xs font-bold transition-colors ${
+              roleFilter === tab
+                ? "bg-[#5B6CFF] text-white"
+                : "bg-[#171A21] text-[#A5A9B5] hover:text-white"
+            }`}
+          >
+            {tab === "ALL" ? "All Roles" : tab}
+          </button>
+        ))}
+      </div>
+
+      {/* ── Body ── */}
       {isLoading ? (
         <div className="flex flex-col gap-3">
-          {Array.from({ length: 5 }).map((_, i) => <div key={i} className="h-16 bg-[#171A21] rounded-2xl animate-pulse" />)}
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="h-[72px] bg-[#171A21] rounded-2xl animate-pulse" />
+          ))}
         </div>
       ) : error ? (
         <div className="rounded-2xl border border-[rgba(239,68,68,0.35)] bg-[rgba(239,68,68,0.08)] p-6 text-center">
           <p className="text-[#FCA5A5] text-sm mb-3">{error}</p>
-          <button onClick={refetch} className="text-[#5B6CFF] text-sm font-semibold bg-[rgba(91,108,255,0.12)] px-4 py-2 rounded-xl">Retry</button>
+          <button
+            onClick={refetch}
+            className="text-[#5B6CFF] text-sm font-semibold bg-[rgba(91,108,255,0.12)] px-4 py-2 rounded-xl"
+          >
+            Retry
+          </button>
         </div>
-      ) : users.length === 0 ? (
+      ) : filtered.length === 0 ? (
         <div className="text-center py-12">
           <Users size={40} className="text-[#A5A9B5] mx-auto mb-3 opacity-30" />
-          <p className="text-[#A5A9B5]">No users found</p>
+          <p className="text-[#A5A9B5] text-sm">
+            {search || roleFilter !== "ALL" ? "No users match your filters" : "No users found"}
+          </p>
+          {(search || roleFilter !== "ALL") && (
+            <button
+              onClick={() => { setSearch(""); setRoleFilter("ALL"); }}
+              className="mt-3 text-[#5B6CFF] text-sm font-semibold"
+            >
+              Clear filters
+            </button>
+          )}
         </div>
       ) : (
         <>
           <div className="flex flex-col gap-3">
-            {users.map((u) => (
-              <div key={u.id} className="bg-[#171A21] rounded-2xl p-4 flex items-center gap-4">
-                <div className="w-10 h-10 rounded-full bg-[#20242D] flex items-center justify-center text-white font-bold text-sm shrink-0">
-                  {u.firstName?.[0]?.toUpperCase() ?? "?"}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-white font-bold text-sm truncate">{u.firstName} {u.lastName}</p>
-                  <p className="text-[#A5A9B5] text-xs truncate">{u.email}</p>
-                </div>
-                <div className="flex flex-col items-end gap-1 shrink-0">
-                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${u.role === 'ADMIN' ? 'bg-[rgba(245,158,11,0.15)] text-[#FBBF24]' : u.role === 'HELPER' ? 'bg-[rgba(34,197,94,0.15)] text-[#22C55E]' : 'bg-[rgba(91,108,255,0.15)] text-[#5B6CFF]'}`}>{u.role}</span>
-                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${u.isActive ? 'bg-[rgba(34,197,94,0.15)] text-[#22C55E]' : 'bg-[rgba(239,68,68,0.15)] text-[#EF4444]'}`}>{u.isActive ? 'Active' : 'Inactive'}</span>
-                </div>
-              </div>
-            ))}
+            {filtered.map((u) => {
+              const rs = getRoleStyle(u.role);
+              const initials = `${u.firstName?.[0] ?? ""}${u.lastName?.[0] ?? ""}`.toUpperCase() || "?";
+              return (
+                <button
+                  key={u.id}
+                  id={`admin-user-card-${u.id}`}
+                  onClick={() => setDetailUser(u)}
+                  className="bg-[#171A21] rounded-2xl p-4 flex items-center gap-3 w-full text-left active:scale-[0.98] transition-transform hover:bg-[#1c2029]"
+                >
+                  {/* Avatar */}
+                  <div
+                    className="w-11 h-11 rounded-full flex items-center justify-center text-white font-bold text-sm shrink-0"
+                    style={{ background: rs.avatarBg, color: rs.text }}
+                  >
+                    {initials}
+                  </div>
+
+                  {/* Name + email */}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-white font-bold text-sm truncate">
+                      {u.firstName} {u.lastName}
+                    </p>
+                    <p className="text-[#A5A9B5] text-xs truncate">{u.email}</p>
+                    <p className="text-[#A5A9B5] text-[10px] mt-0.5">
+                      Joined {formatDate(u.createdAt)}
+                    </p>
+                  </div>
+
+                  {/* Badges */}
+                  <div className="flex flex-col items-end gap-1.5 shrink-0">
+                    <span
+                      className="text-[10px] font-bold px-2 py-0.5 rounded-full"
+                      style={{ background: rs.bg, color: rs.text }}
+                    >
+                      {u.role}
+                    </span>
+                    <span
+                      className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                        u.isActive
+                          ? "bg-[rgba(34,197,94,0.15)] text-[#22C55E]"
+                          : "bg-[rgba(239,68,68,0.15)] text-[#EF4444]"
+                      }`}
+                    >
+                      {u.isActive ? "Active" : "Inactive"}
+                    </span>
+                    {u.isVerified && (
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[rgba(34,197,94,0.10)] text-[#22C55E] flex items-center gap-0.5">
+                        <Check size={9} /> Verified
+                      </span>
+                    )}
+                  </div>
+                </button>
+              );
+            })}
           </div>
 
+          {/* Pagination */}
           {totalPages > 1 && (
             <div className="flex items-center justify-between mt-2">
-              <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1} className="px-4 py-2 rounded-xl bg-[#20242D] text-white text-xs font-semibold disabled:opacity-50">Previous</button>
-              <span className="text-[#A5A9B5] text-xs">Page {page} of {totalPages}</span>
-              <button onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page === totalPages} className="px-4 py-2 rounded-xl bg-[#5B6CFF] text-white text-xs font-semibold disabled:opacity-50">Next</button>
+              <button
+                id="admin-users-prev-btn"
+                onClick={() => { setPage((p) => Math.max(1, p - 1)); }}
+                disabled={page === 1}
+                className="px-4 py-2 rounded-xl bg-[#20242D] text-white text-xs font-semibold disabled:opacity-40"
+              >
+                Previous
+              </button>
+              <span className="text-[#A5A9B5] text-xs">
+                Page {page} of {totalPages}
+              </span>
+              <button
+                id="admin-users-next-btn"
+                onClick={() => { setPage((p) => Math.min(totalPages, p + 1)); }}
+                disabled={page === totalPages}
+                className="px-4 py-2 rounded-xl bg-[#5B6CFF] text-white text-xs font-semibold disabled:opacity-40"
+              >
+                Next
+              </button>
             </div>
           )}
         </>
       )}
+
+      {/* ── User Detail Modal ── */}
+      {detailUser && (() => {
+        const u = detailUser;
+        const rs = getRoleStyle(u.role);
+        const initials = `${u.firstName?.[0] ?? ""}${u.lastName?.[0] ?? ""}`.toUpperCase() || "?";
+        return (
+          <div
+            className="absolute inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm px-5 pb-8"
+            onClick={() => setDetailUser(null)}
+          >
+            <div
+              className="bg-[#171A21] rounded-3xl p-5 w-full max-h-[80vh] overflow-y-auto"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Modal header */}
+              <div className="flex items-center justify-between mb-5">
+                <h3
+                  className="text-lg font-bold text-white"
+                  style={{ fontFamily: "'Plus Jakarta Sans',sans-serif" }}
+                >
+                  User Details
+                </h3>
+                <button
+                  id="admin-user-detail-close"
+                  onClick={() => setDetailUser(null)}
+                  className="w-9 h-9 rounded-full bg-[#20242D] flex items-center justify-center active:scale-90 transition-transform"
+                >
+                  <X size={16} className="text-white" />
+                </button>
+              </div>
+
+              {/* Avatar + name */}
+              <div className="flex flex-col items-center mb-6">
+                <div
+                  className="w-16 h-16 rounded-full flex items-center justify-center text-2xl font-bold mb-3"
+                  style={{ background: rs.avatarBg, color: rs.text }}
+                >
+                  {initials}
+                </div>
+                <p className="text-white font-bold text-base" style={{ fontFamily: "'Plus Jakarta Sans',sans-serif" }}>
+                  {u.firstName} {u.lastName}
+                </p>
+                <p className="text-[#A5A9B5] text-sm mt-0.5">{u.email}</p>
+
+                <div className="flex gap-2 mt-3 flex-wrap justify-center">
+                  <span
+                    className="text-xs font-bold px-3 py-1 rounded-full"
+                    style={{ background: rs.bg, color: rs.text }}
+                  >
+                    {u.role}
+                  </span>
+                  <span
+                    className={`text-xs font-bold px-3 py-1 rounded-full ${
+                      u.isActive
+                        ? "bg-[rgba(34,197,94,0.15)] text-[#22C55E]"
+                        : "bg-[rgba(239,68,68,0.15)] text-[#EF4444]"
+                    }`}
+                  >
+                    {u.isActive ? "Active" : "Inactive"}
+                  </span>
+                  {u.isVerified ? (
+                    <span className="text-xs font-bold px-3 py-1 rounded-full bg-[rgba(34,197,94,0.12)] text-[#22C55E] flex items-center gap-1">
+                      <CheckCircle2 size={12} /> Email Verified
+                    </span>
+                  ) : (
+                    <span className="text-xs font-bold px-3 py-1 rounded-full bg-[rgba(239,68,68,0.12)] text-[#EF4444]">
+                      Unverified
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Fields */}
+              <div className="flex flex-col gap-3">
+                {[
+                  { label: "User ID", value: u.id },
+                  { label: "Joined", value: formatDate(u.createdAt) },
+                ].map(({ label, value }) => (
+                  <div key={label} className="bg-[#20242D] rounded-xl px-4 py-3 flex items-center justify-between gap-3">
+                    <span className="text-[#A5A9B5] text-xs font-semibold uppercase tracking-[0.08em]">
+                      {label}
+                    </span>
+                    <span className="text-white text-sm font-medium text-right break-all">{value}</span>
+                  </div>
+                ))}
+              </div>
+
+              <button
+                id="admin-user-detail-dismiss"
+                onClick={() => setDetailUser(null)}
+                className="w-full mt-5 rounded-2xl bg-[#20242D] py-3 text-white font-semibold text-sm active:scale-[0.98] transition-transform"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
@@ -3396,7 +3663,7 @@ export default function App() {
   const { isAuthenticated, isLoading, login, logout, user } = useAuth();
 
   const isHelper = user?.role === 'helper';
-  const isAdmin = user?.role === 'admin';
+  const isAdmin = user?.role === 'ADMIN';
 
   const pushToast = (msg: string, color?: string) => {
     const id = ++toastId[0];
