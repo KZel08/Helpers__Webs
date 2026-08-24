@@ -3272,6 +3272,16 @@ function AdminUsersScreen({ onBack, toast: _toast }: { onBack: () => void; toast
   );
 }
 
+// BookingStatus enum: PENDING | ACCEPTED | ONGOING | COMPLETED | CANCELLED | REFUNDED
+const BOOKING_STATUS_STYLES: Record<string, string> = {
+  PENDING:   "bg-[rgba(245,158,11,0.15)] text-[#FBBF24]",
+  ACCEPTED:  "bg-[rgba(91,108,255,0.15)] text-[#5B6CFF]",
+  ONGOING:   "bg-[rgba(249,115,22,0.15)] text-[#F97316]",
+  COMPLETED: "bg-[rgba(34,197,94,0.15)] text-[#22C55E]",
+  CANCELLED: "bg-[rgba(255,255,255,0.08)] text-[#A5A9B5]",
+  REFUNDED:  "bg-[rgba(168,85,247,0.15)] text-[#A855F7]",
+};
+
 function AdminBookingsScreen({ onBack, toast }: { onBack: () => void; toast: (msg: string, color?: string) => void }) {
   const [page, setPage] = useState(1);
   const limit = 10;
@@ -3319,7 +3329,7 @@ function AdminBookingsScreen({ onBack, toast }: { onBack: () => void; toast: (ms
                       <p className="text-white font-bold text-sm truncate">{b.service.title}</p>
                       <p className="text-[#A5A9B5] text-xs mt-0.5">Customer: {customerName} · Helper: {helperName}</p>
                     </div>
-                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${b.status === 'PENDING' ? 'bg-[rgba(245,158,11,0.15)] text-[#FBBF24]' : b.status === 'COMPLETED' ? 'bg-[rgba(34,197,94,0.15)] text-[#22C55E]' : 'bg-[rgba(239,68,68,0.15)] text-[#EF4444]'}`}>{b.status}</span>
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${BOOKING_STATUS_STYLES[b.status] ?? "bg-[rgba(255,255,255,0.08)] text-[#A5A9B5]"}`}>{b.status}</span>
                   </div>
                   <div className="flex items-center justify-between text-xs text-[#A5A9B5]">
                     <span>{formatDate(b.bookingDate)}</span>
