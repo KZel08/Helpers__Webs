@@ -4234,8 +4234,36 @@ function AdminServiceRequestsScreen({ onBack, toast }: { onBack: () => void; toa
 
 // ─── App root ─────────────────────────────────────────────────────────────────
 
+// ─── URL ↔ Screen routing (History API; no router library) ───────────────────
+const ADMIN_ROUTE_TO_SCREEN: Record<string, Screen> = {
+  "/admin": "admin-dashboard",
+  "/admin/users": "admin-users",
+  "/admin/bookings": "admin-bookings",
+  "/admin/services": "admin-services",
+  "/admin/categories": "admin-categories",
+  "/admin/service-requests": "admin-service-requests",
+};
+
+const SCREEN_TO_ADMIN_PATH: Partial<Record<Screen, string>> = {
+  "admin-dashboard": "/admin",
+  "admin-users": "/admin/users",
+  "admin-bookings": "/admin/bookings",
+  "admin-services": "/admin/services",
+  "admin-categories": "/admin/categories",
+  "admin-service-requests": "/admin/service-requests",
+};
+
+function screenFromPath(pathname: string): Screen {
+  const clean = pathname.replace(/\/+$/, "") || "/";
+  return ADMIN_ROUTE_TO_SCREEN[clean] ?? "home";
+}
+
+function pathForScreen(screen: Screen): string {
+  return SCREEN_TO_ADMIN_PATH[screen] ?? "/";
+}
+
 export default function App() {
-  const [screen, setScreen]           = useState<Screen>("home");
+  const [screen, setScreen]           = useState<Screen>(() => screenFromPath(window.location.pathname));
   const [prevScreen, setPrevScreen]   = useState<Screen>("home");
   const [detailId, setDetailId]       = useState("1");
   const [bookingDetailId, setBookingDetailId] = useState<string | null>(null);
@@ -4294,12 +4322,33 @@ export default function App() {
   }, [isAuthenticated, isHelper, isAdmin, screen]);
 
   useEffect(() => {
+    if (isLoading) return; // Don't redirect until auth state is resolved (preserves deep links).
     const adminScreens: Screen[] = ["admin-dashboard", "admin-users", "admin-bookings", "admin-categories", "admin-services", "admin-service-requests"];
     if (adminScreens.includes(screen) && !isAdmin) {
       setScreen("home");
       setPrevScreen("home");
     }
-  }, [screen, isAdmin]);
+  }, [screen, isAdmin, isLoading]);
+
+  // Keep the address bar in sync with the active screen.
+  // Admin screens get real URLs; everything else resolves to "/".
+  useEffect(() => {
+    const target = pathForScreen(screen);
+    if (window.location.pathname !== target) {
+      window.history.pushState({}, "", target);
+    }
+  }, [screen]);
+
+  // Browser back/forward support.
+  useEffect(() => {
+    const onPop = () => {
+      const next = screenFromPath(window.location.pathname);
+      setScreen(next);
+      setPrevScreen(next);
+    };
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
 
   const openBookingDetail = (id: string) => {
     setBookingDetailId(id);
