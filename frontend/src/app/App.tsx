@@ -2922,21 +2922,6 @@ function AdminDashboardScreen({ onNavigate, toast }: { onNavigate: (s: Screen, i
         ))}
       </div>
 
-      {stats.pendingVerifications > 0 && (
-        <button onClick={() => onNavigate("admin-service-requests")} className="w-full bg-[#171A21] rounded-2xl p-4 flex items-center justify-between active:scale-[0.98] transition-transform">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-[rgba(245,158,11,0.12)] flex items-center justify-center">
-              <Clock size={20} className="text-[#F59E0B]" />
-            </div>
-            <div className="text-left">
-              <p className="text-white font-bold text-sm">Pending Verifications</p>
-              <p className="text-[#A5A9B5] text-xs">{stats.pendingVerifications} helper(s) awaiting review</p>
-            </div>
-          </div>
-          <ChevronRight size={16} className="text-[#A5A9B5]" />
-        </button>
-      )}
-
       <div className="flex flex-col gap-3 mt-2">
         {[
           { label:"Users",            screen:"admin-users"            as Screen, icon: Users,         color:"#5B6CFF" },
