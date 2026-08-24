@@ -15,7 +15,10 @@ export const envValidationSchema = Joi.object({
 
   JWT_REFRESH_EXPIRES_IN: Joi.string().default('30d'),
 
-  FRONTEND_URL: Joi.string().uri().default('http://localhost:5173'),
+  // Single origin or a comma-separated list of allowed origins.
+  FRONTEND_URL: Joi.string()
+    .pattern(/^(https?:\/\/[^\s,]+)(,\s*https?:\/\/[^\s,]+)*$/)
+    .default('http://localhost:5173'),
 
   // Optional — not required to start server
   SMTP_HOST: Joi.string().optional().allow(''),

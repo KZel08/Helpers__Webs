@@ -16,7 +16,7 @@ async function bootstrap() {
 
   const configService = app.get(ConfigService);
   const port = configService.get<number>('PORT') ?? 3000;
-  const frontendUrl = configService.get<string>('FRONTEND_URL') ?? 'http://localhost:5173';
+  const frontendUrl = configService.get<string>('FRONTEND_URL');
   const nodeEnv = configService.get<string>('NODE_ENV') ?? 'development';
 
   // Security
@@ -24,9 +24,17 @@ async function bootstrap() {
   app.use(compression());
   app.use(cookieParser());
 
-  // CORS
+  // CORS — FRONTEND_URL may be a single origin or a comma-separated list.
+  // Localhost is always allowed outside production so local dev keeps working.
+  const allowedOrigins = frontendUrl
+    ? frontendUrl.split(',').map((o) => o.trim()).filter(Boolean)
+    : ['http://localhost:5173'];
+  if (nodeEnv !== 'production' && !allowedOrigins.includes('http://localhost:5173')) {
+    allowedOrigins.push('http://localhost:5173');
+  }
+
   app.enableCors({
-    origin: frontendUrl,
+    origin: allowedOrigins,
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],

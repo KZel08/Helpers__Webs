@@ -1,7 +1,7 @@
 // ─── API Client ─────────────────────────────────────────────────────────────
 // Uses native fetch with JWT token injection and auto-refresh on 401.
 
-const BASE_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3000/api';
+const BASE_URL = import.meta.env.VITE_API_URL ?? '/api';
 
 // Token storage helpers
 export const tokenStorage = {
