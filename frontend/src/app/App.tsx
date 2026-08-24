@@ -7,8 +7,8 @@ import { useAdminStats, useAdminUsers, useAdminBookings, useAdminCategories, use
 import { useHelperProfile } from "../hooks/useHelperProfile";
 import { useHelperServiceRequests } from "../hooks/useHelperServiceRequests";
 import { useAuth } from "../contexts/AuthContext";
-import type { ServiceData, AddressData, CreateAddressRequest, UpdateAddressRequest, BookingData, AdminStatsData, AdminUserData, AdminBookingData, AdminCategoryData, AdminServiceRequestData, CreateCategoryPayload, UpdateCategoryPayload, ReviewServiceRequestPayload, ServiceRequestData, CreateServiceRequestPayload } from "../lib/api";
-import { bookingsApi, paymentsApi, helpersApi, adminApi } from "../lib/api";
+import type { ServiceData, AddressData, CreateAddressRequest, UpdateAddressRequest, BookingData, AdminStatsData, AdminUserData, AdminBookingData, AdminCategoryData, AdminServiceRequestData, CreateCategoryPayload, UpdateCategoryPayload, ReviewServiceRequestPayload, ServiceRequestData, CreateServiceRequestPayload, CreateAdminServicePayload } from "../lib/api";
+import { bookingsApi, paymentsApi, helpersApi, adminApi, servicesApi } from "../lib/api";
 import { loadRazorpayScript } from "../lib/razorpay";
 import {
   MapPin, Bell, Search, Star, ChevronRight, Home, Grid,
@@ -52,7 +52,7 @@ function buildBookingIso(dateLabel: string, timeLabel: string): string | null {
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type Screen = "home" | "explore" | "bookings" | "profile" | "detail" | "booking" | "addresses" | "booking-detail" | "helper-dashboard" | "helper-profile" | "helper-services" | "helper-bookings" | "admin-dashboard" | "admin-users" | "admin-bookings" | "admin-categories" | "admin-service-requests" | "helper-booking-detail" | "helper-service-requests";
+type Screen = "home" | "explore" | "bookings" | "profile" | "detail" | "booking" | "addresses" | "booking-detail" | "helper-dashboard" | "helper-profile" | "helper-services" | "helper-bookings" | "admin-dashboard" | "admin-users" | "admin-bookings" | "admin-categories" | "admin-services" | "admin-service-requests" | "helper-booking-detail" | "helper-service-requests";
 
 interface Provider {
   id: string;
@@ -2939,12 +2939,13 @@ function AdminDashboardScreen({ onNavigate, toast }: { onNavigate: (s: Screen, i
 
       <div className="flex flex-col gap-3 mt-2">
         {[
-          { label:"Users", screen:"admin-users" as Screen, icon: Users, color:"#5B6CFF" },
-          { label:"Bookings", screen:"admin-bookings" as Screen, icon: CalendarCheck, color:"#F59E0B" },
-          { label:"Categories", screen:"admin-categories" as Screen, icon: Folder, color:"#22C55E" },
-          { label:"Service Requests", screen:"admin-service-requests" as Screen, icon: ClipboardList, color:"#EC4899" },
+          { label:"Users",            screen:"admin-users"            as Screen, icon: Users,         color:"#5B6CFF" },
+          { label:"Bookings",         screen:"admin-bookings"         as Screen, icon: CalendarCheck,  color:"#F59E0B" },
+          { label:"Categories",       screen:"admin-categories"       as Screen, icon: Folder,         color:"#22C55E" },
+          { label:"Services",         screen:"admin-services"         as Screen, icon: Sparkles,       color:"#A855F7" },
+          { label:"Service Requests", screen:"admin-service-requests" as Screen, icon: ClipboardList,  color:"#EC4899" },
         ].map((item) => (
-          <button key={item.screen} onClick={() => onNavigate(item.screen)} className="w-full bg-[#171A21] rounded-2xl p-4 flex items-center gap-4 active:scale-[0.98] transition-transform">
+          <button key={item.screen} id={`admin-dash-nav-${item.screen}`} onClick={() => onNavigate(item.screen)} className="w-full bg-[#171A21] rounded-2xl p-4 flex items-center gap-4 active:scale-[0.98] transition-transform">
             <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: `${item.color}20` }}>
               <item.icon size={20} style={{ color: item.color }} />
             </div>
@@ -3365,6 +3366,8 @@ function AdminCategoriesScreen({ onBack, toast }: { onBack: () => void; toast: (
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [form, setForm] = useState<CreateCategoryPayload>({ name: "", description: "", icon: "" });
+  // in-component delete confirm (replaces native window.confirm)
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
   const openCreate = () => {
     setEditingCategory(null);
@@ -3405,8 +3408,10 @@ function AdminCategoriesScreen({ onBack, toast }: { onBack: () => void; toast: (
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm("Delete this category? This action cannot be undone.")) return;
+  const handleDeleteConfirmed = async () => {
+    if (!deleteConfirmId) return;
+    const id = deleteConfirmId;
+    setDeleteConfirmId(null);
     try {
       await remove(id);
       toast("Category deleted.", "#EF4444");
@@ -3417,18 +3422,33 @@ function AdminCategoriesScreen({ onBack, toast }: { onBack: () => void; toast: (
 
   return (
     <div className="flex flex-col gap-4 pb-4 pt-2">
+      {/* ── Header ── */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <button onClick={onBack} className="w-10 h-10 rounded-full bg-[#20242D] flex items-center justify-center active:scale-90 transition-transform">
+          <button
+            id="admin-categories-back-btn"
+            onClick={onBack}
+            className="w-10 h-10 rounded-full bg-[#20242D] flex items-center justify-center active:scale-90 transition-transform"
+          >
             <ArrowLeft size={18} className="text-white" />
           </button>
-          <h2 className="font-bold text-white text-lg" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>Categories</h2>
+          <div>
+            <h2 className="font-bold text-white text-lg" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>Categories</h2>
+            {!isLoading && !error && (
+              <p className="text-[#A5A9B5] text-xs">{categories.length} total</p>
+            )}
+          </div>
         </div>
-        <button onClick={openCreate} className="flex items-center gap-2 rounded-xl bg-[#5B6CFF] px-3 py-2 text-xs font-bold text-white active:scale-95 transition-transform">
+        <button
+          id="admin-categories-add-btn"
+          onClick={openCreate}
+          className="flex items-center gap-2 rounded-xl bg-[#5B6CFF] px-3 py-2 text-xs font-bold text-white active:scale-95 transition-transform"
+        >
           <Plus size={14} /> Add
         </button>
       </div>
 
+      {/* ── Body ── */}
       {isLoading ? (
         <div className="flex flex-col gap-3">
           {Array.from({ length: 5 }).map((_, i) => <div key={i} className="h-20 bg-[#171A21] rounded-2xl animate-pulse" />)}
@@ -3447,7 +3467,7 @@ function AdminCategoriesScreen({ onBack, toast }: { onBack: () => void; toast: (
       ) : (
         <div className="flex flex-col gap-3">
           {categories.map((cat) => (
-            <div key={cat.id} className="bg-[#171A21] rounded-2xl p-4">
+            <div key={cat.id} id={`admin-category-card-${cat.id}`} className="bg-[#171A21] rounded-2xl p-4">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2 mb-1">
@@ -3455,12 +3475,21 @@ function AdminCategoriesScreen({ onBack, toast }: { onBack: () => void; toast: (
                     <p className="text-white font-bold text-sm">{cat.name}</p>
                   </div>
                   {cat.description && <p className="text-[#A5A9B5] text-xs leading-relaxed">{cat.description}</p>}
+                  <p className="text-[#A5A9B5] text-[10px] mt-1">ID: {cat.id.slice(0, 8)}…</p>
                 </div>
                 <div className="flex gap-2 shrink-0">
-                  <button onClick={() => openEdit(cat)} className="w-8 h-8 rounded-lg bg-[#20242D] flex items-center justify-center active:scale-90 transition-transform">
+                  <button
+                    id={`admin-category-edit-${cat.id}`}
+                    onClick={() => openEdit(cat)}
+                    className="w-8 h-8 rounded-lg bg-[#20242D] flex items-center justify-center active:scale-90 transition-transform"
+                  >
                     <Edit2 size={14} className="text-white" />
                   </button>
-                  <button onClick={() => handleDelete(cat.id)} className="w-8 h-8 rounded-lg bg-[rgba(239,68,68,0.12)] flex items-center justify-center active:scale-90 transition-transform">
+                  <button
+                    id={`admin-category-delete-${cat.id}`}
+                    onClick={() => setDeleteConfirmId(cat.id)}
+                    className="w-8 h-8 rounded-lg bg-[rgba(239,68,68,0.12)] flex items-center justify-center active:scale-90 transition-transform"
+                  >
                     <Trash2 size={14} className="text-[#EF4444]" />
                   </button>
                 </div>
@@ -3470,37 +3499,561 @@ function AdminCategoriesScreen({ onBack, toast }: { onBack: () => void; toast: (
         </div>
       )}
 
+      {/* ── Create/Edit form modal ── */}
       {isFormOpen && (
         <div className="absolute inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm px-5 pb-8">
           <div className="bg-[#171A21] rounded-3xl p-5 w-full max-h-[88vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-xl font-bold text-white" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>{editingCategory ? "Edit Category" : "New Category"}</h2>
-              <button onClick={() => setIsFormOpen(false)} className="w-9 h-9 rounded-full bg-[#20242D] flex items-center justify-center active:scale-90 transition-transform">
+              <button
+                id="admin-category-form-close"
+                onClick={() => setIsFormOpen(false)}
+                className="w-9 h-9 rounded-full bg-[#20242D] flex items-center justify-center active:scale-90 transition-transform"
+              >
                 <X size={16} className="text-white" />
               </button>
             </div>
             <form onSubmit={handleSubmit} className="flex flex-col gap-3">
               <div>
                 <label className="block text-xs font-semibold uppercase tracking-[0.08em] text-[#A5A9B5] mb-1.5">Name <span className="text-[#EF4444]">*</span></label>
-                <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="w-full rounded-xl border border-[rgba(255,255,255,0.08)] bg-[#20242D] px-3 py-2.5 text-sm text-white outline-none placeholder:text-[#A5A9B5] focus:border-[#5B6CFF]" required />
+                <input
+                  id="admin-category-form-name"
+                  value={form.name}
+                  onChange={(e) => setForm({ ...form, name: e.target.value })}
+                  className="w-full rounded-xl border border-[rgba(255,255,255,0.08)] bg-[#20242D] px-3 py-2.5 text-sm text-white outline-none placeholder:text-[#A5A9B5] focus:border-[#5B6CFF]"
+                  required
+                />
               </div>
               <div>
                 <label className="block text-xs font-semibold uppercase tracking-[0.08em] text-[#A5A9B5] mb-1.5">Description</label>
-                <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={3} className="w-full rounded-xl border border-[rgba(255,255,255,0.08)] bg-[#20242D] px-3 py-2.5 text-sm text-white outline-none placeholder:text-[#A5A9B5] focus:border-[#5B6CFF] resize-none" />
+                <textarea
+                  id="admin-category-form-description"
+                  value={form.description}
+                  onChange={(e) => setForm({ ...form, description: e.target.value })}
+                  rows={3}
+                  className="w-full rounded-xl border border-[rgba(255,255,255,0.08)] bg-[#20242D] px-3 py-2.5 text-sm text-white outline-none placeholder:text-[#A5A9B5] focus:border-[#5B6CFF] resize-none"
+                />
               </div>
               <div>
-                <label className="block text-xs font-semibold uppercase tracking-[0.08em] text-[#A5A9B5] mb-1.5">Icon</label>
-                <input value={form.icon} onChange={(e) => setForm({ ...form, icon: e.target.value })} placeholder="e.g. 🧹" className="w-full rounded-xl border border-[rgba(255,255,255,0.08)] bg-[#20242D] px-3 py-2.5 text-sm text-white outline-none placeholder:text-[#A5A9B5] focus:border-[#5B6CFF]" />
+                <label className="block text-xs font-semibold uppercase tracking-[0.08em] text-[#A5A9B5] mb-1.5">Icon <span className="text-[#A5A9B5] text-[10px] normal-case">(emoji)</span></label>
+                <input
+                  id="admin-category-form-icon"
+                  value={form.icon}
+                  onChange={(e) => setForm({ ...form, icon: e.target.value })}
+                  placeholder="e.g. 🧹"
+                  className="w-full rounded-xl border border-[rgba(255,255,255,0.08)] bg-[#20242D] px-3 py-2.5 text-sm text-white outline-none placeholder:text-[#A5A9B5] focus:border-[#5B6CFF]"
+                />
               </div>
-              {(submitError) && (
+              {submitError && (
                 <div className="rounded-xl border border-[rgba(239,68,68,0.35)] bg-[rgba(239,68,68,0.08)] px-3 py-2 text-sm text-[#FCA5A5]">
                   {submitError}
                 </div>
               )}
               <div className="flex gap-3 pt-2">
                 <button type="button" onClick={() => setIsFormOpen(false)} className="flex-1 h-12 rounded-2xl bg-[#20242D] text-white font-bold">Cancel</button>
-                <button type="submit" disabled={isSubmitting} className="flex-1 h-12 rounded-2xl font-bold text-white disabled:opacity-70" style={{ background:"linear-gradient(135deg,#5B6CFF 0%,#7E57FF 100%)" }}>
-                  {isSubmitting ? "Saving..." : editingCategory ? "Save Changes" : "Create"}
+                <button
+                  id="admin-category-form-submit"
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="flex-1 h-12 rounded-2xl font-bold text-white disabled:opacity-70"
+                  style={{ background:"linear-gradient(135deg,#5B6CFF 0%,#7E57FF 100%)" }}
+                >
+                  {isSubmitting ? "Saving…" : editingCategory ? "Save Changes" : "Create"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── Delete confirm modal ── */}
+      {deleteConfirmId && (
+        <div className="absolute inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm px-5 pb-8">
+          <div className="bg-[#171A21] rounded-3xl p-6 w-full flex flex-col items-center gap-4">
+            <div className="w-14 h-14 rounded-full bg-[rgba(239,68,68,0.15)] flex items-center justify-center">
+              <Trash2 size={26} className="text-[#EF4444]" />
+            </div>
+            <div className="text-center">
+              <h2 className="text-xl font-bold text-white" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>Delete Category</h2>
+              <p className="text-[#A5A9B5] text-sm mt-1">This action cannot be undone. Services in this category may be affected.</p>
+            </div>
+            <div className="flex gap-3 w-full pt-2">
+              <button
+                id="admin-category-delete-cancel"
+                onClick={() => setDeleteConfirmId(null)}
+                className="flex-1 h-12 rounded-2xl bg-[#20242D] text-white font-bold"
+              >
+                Cancel
+              </button>
+              <button
+                id="admin-category-delete-confirm"
+                onClick={handleDeleteConfirmed}
+                className="flex-1 h-12 rounded-2xl font-bold text-white active:scale-95 transition-transform"
+                style={{ background:"linear-gradient(135deg,#EF4444 0%,#B91C1C 100%)" }}
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Admin Services Screen ────────────────────────────────────────────────────
+// Uses GET /services (public, paginated, searchable) for listing.
+// Uses POST /admin/services for creation (requires helperId from admin).
+// No admin update/delete: PUT/DELETE /services/:id enforces owner guard.
+
+function AdminServicesScreen({ onBack, toast }: { onBack: () => void; toast: (msg: string, color?: string) => void }) {
+  const [page, setPage] = useState(1);
+  const limit = 10;
+
+  // filters
+  const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("");
+
+  // debounce search by 400ms
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search), 400);
+    return () => clearTimeout(t);
+  }, [search]);
+
+  // reset page on filter change
+  useEffect(() => { setPage(1); }, [debouncedSearch, categoryFilter]);
+
+  // fetch services via public API (supports page, limit, search, categoryId)
+  const [services, setServices] = useState<ServiceData[]>([]);
+  const [total, setTotal] = useState(0);
+  const [isLoading, setIsLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
+
+  const loadServices = async () => {
+    setIsLoading(true);
+    setFetchError(null);
+    try {
+      const res = await servicesApi.list({
+        page,
+        limit,
+        search: debouncedSearch || undefined,
+        categoryId: categoryFilter || undefined,
+      });
+      setServices(res.services);
+      setTotal(res.total);
+    } catch (err) {
+      setFetchError(err instanceof Error ? err.message : "Failed to load services");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => { loadServices(); }, [page, debouncedSearch, categoryFilter]);
+
+  const totalPages = Math.max(1, Math.ceil(total / limit));
+
+  // categories for the filter dropdown
+  const { categories: allCategories } = useAdminCategories();
+
+  // selected service detail modal
+  const [detailService, setDetailService] = useState<ServiceData | null>(null);
+
+  // create service modal
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [createForm, setCreateForm] = useState<CreateAdminServicePayload>({
+    title: "",
+    description: "",
+    categoryId: "",
+    helperId: "",
+    price: 0,
+    priceType: "FIXED",
+    duration: undefined,
+  });
+  const [createError, setCreateError] = useState<string | null>(null);
+  const [isCreating, setIsCreating] = useState(false);
+
+  const openCreate = () => {
+    setCreateForm({ title: "", description: "", categoryId: "", helperId: "", price: 0, priceType: "FIXED", duration: undefined });
+    setCreateError(null);
+    setIsCreateOpen(true);
+  };
+
+  const handleCreate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!createForm.title.trim()) { setCreateError("Title is required."); return; }
+    if (!createForm.categoryId)  { setCreateError("Category is required."); return; }
+    if (!createForm.helperId.trim()) { setCreateError("Helper profile ID is required."); return; }
+    if (createForm.price < 0) { setCreateError("Price must be ≥ 0."); return; }
+    setIsCreating(true);
+    setCreateError(null);
+    try {
+      await adminApi.createService(createForm);
+      toast("Service created.", "#22C55E");
+      setIsCreateOpen(false);
+      loadServices();
+    } catch (err) {
+      setCreateError(err instanceof Error ? err.message : "Failed to create service.");
+    } finally {
+      setIsCreating(false);
+    }
+  };
+
+  const formatPrice = (price: number, priceType: string) =>
+    `₹${price.toLocaleString()} / ${priceType.toLowerCase()}`;
+
+  return (
+    <div className="flex flex-col gap-4 pb-4 pt-2">
+      {/* ── Header ── */}
+      <div className="flex items-center gap-4">
+        <button
+          id="admin-services-back-btn"
+          onClick={onBack}
+          className="w-10 h-10 rounded-full bg-[#20242D] flex items-center justify-center active:scale-90 transition-transform"
+        >
+          <ArrowLeft size={18} className="text-white" />
+        </button>
+        <div className="flex-1 min-w-0">
+          <h2 className="font-bold text-white text-lg" style={{ fontFamily: "'Plus Jakarta Sans',sans-serif" }}>Services</h2>
+          {!isLoading && !fetchError && (
+            <p className="text-[#A5A9B5] text-xs">{total.toLocaleString()} active services</p>
+          )}
+        </div>
+        <button
+          id="admin-services-create-btn"
+          onClick={openCreate}
+          className="flex items-center gap-1.5 rounded-xl bg-[#A855F7] px-3 py-2 text-xs font-bold text-white active:scale-95 transition-transform"
+        >
+          <Plus size={14} /> Add
+        </button>
+      </div>
+
+      {/* ── Search ── */}
+      <div className="relative">
+        <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#A5A9B5] pointer-events-none" />
+        <input
+          id="admin-services-search"
+          type="text"
+          placeholder="Search by title or description…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="w-full rounded-xl border border-[rgba(255,255,255,0.08)] bg-[#171A21] pl-9 pr-8 py-2.5 text-sm text-white outline-none placeholder:text-[#A5A9B5] focus:border-[#A855F7] transition-colors"
+        />
+        {search && (
+          <button onClick={() => setSearch("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-[#A5A9B5] hover:text-white">
+            <X size={14} />
+          </button>
+        )}
+      </div>
+
+      {/* ── Category filter ── */}
+      {allCategories.length > 0 && (
+        <div className="flex gap-2 overflow-x-auto pb-0.5" style={{ scrollbarWidth: "none" }}>
+          <button
+            id="admin-services-filter-all"
+            onClick={() => setCategoryFilter("")}
+            className={`shrink-0 px-3 py-1.5 rounded-xl text-xs font-bold transition-colors ${
+              !categoryFilter ? "bg-[#A855F7] text-white" : "bg-[#171A21] text-[#A5A9B5] hover:text-white"
+            }`}
+          >
+            All
+          </button>
+          {allCategories.map((cat) => (
+            <button
+              key={cat.id}
+              id={`admin-services-filter-${cat.id}`}
+              onClick={() => setCategoryFilter(cat.id)}
+              className={`shrink-0 px-3 py-1.5 rounded-xl text-xs font-bold transition-colors ${
+                categoryFilter === cat.id ? "bg-[#A855F7] text-white" : "bg-[#171A21] text-[#A5A9B5] hover:text-white"
+              }`}
+            >
+              {cat.icon && <span className="mr-1">{cat.icon}</span>}{cat.name}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* ── Body ── */}
+      {isLoading ? (
+        <div className="flex flex-col gap-3">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <div key={i} className="h-24 bg-[#171A21] rounded-2xl animate-pulse" />
+          ))}
+        </div>
+      ) : fetchError ? (
+        <div className="rounded-2xl border border-[rgba(239,68,68,0.35)] bg-[rgba(239,68,68,0.08)] p-6 text-center">
+          <p className="text-[#FCA5A5] text-sm mb-3">{fetchError}</p>
+          <button onClick={loadServices} className="text-[#A855F7] text-sm font-semibold bg-[rgba(168,85,247,0.12)] px-4 py-2 rounded-xl">
+            Retry
+          </button>
+        </div>
+      ) : services.length === 0 ? (
+        <div className="text-center py-12">
+          <Sparkles size={40} className="text-[#A5A9B5] mx-auto mb-3 opacity-30" />
+          <p className="text-[#A5A9B5] text-sm">
+            {search || categoryFilter ? "No services match your filters" : "No active services found"}
+          </p>
+          {(search || categoryFilter) && (
+            <button
+              onClick={() => { setSearch(""); setCategoryFilter(""); }}
+              className="mt-3 text-[#A855F7] text-sm font-semibold"
+            >
+              Clear filters
+            </button>
+          )}
+        </div>
+      ) : (
+        <>
+          <div className="flex flex-col gap-3">
+            {services.map((svc) => (
+              <button
+                key={svc.id}
+                id={`admin-service-card-${svc.id}`}
+                onClick={() => setDetailService(svc)}
+                className="bg-[#171A21] rounded-2xl p-4 w-full text-left active:scale-[0.98] transition-transform hover:bg-[#1c2029]"
+              >
+                <div className="flex items-start justify-between gap-2 mb-2">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-white font-bold text-sm truncate">{svc.title}</p>
+                    <p className="text-[#A5A9B5] text-xs mt-0.5 truncate">
+                      {svc.helper.user.firstName} {svc.helper.user.lastName} · {svc.category.name}
+                    </p>
+                  </div>
+                  <span className={`shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                    svc.isActive ? "bg-[rgba(34,197,94,0.15)] text-[#22C55E]" : "bg-[rgba(239,68,68,0.15)] text-[#EF4444]"
+                  }`}>
+                    {svc.isActive ? "Active" : "Inactive"}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <p className="text-white font-semibold text-sm">{formatPrice(svc.price, svc.priceType)}</p>
+                  {svc.duration && (
+                    <p className="text-[#A5A9B5] text-xs flex items-center gap-1">
+                      <Clock size={11} />{svc.duration} min
+                    </p>
+                  )}
+                </div>
+                {svc.description && (
+                  <p className="text-[#A5A9B5] text-xs mt-1.5 leading-relaxed line-clamp-2">{svc.description}</p>
+                )}
+              </button>
+            ))}
+          </div>
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between mt-2">
+              <button
+                id="admin-services-prev-btn"
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={page === 1}
+                className="px-4 py-2 rounded-xl bg-[#20242D] text-white text-xs font-semibold disabled:opacity-40"
+              >
+                Previous
+              </button>
+              <span className="text-[#A5A9B5] text-xs">Page {page} of {totalPages}</span>
+              <button
+                id="admin-services-next-btn"
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                disabled={page === totalPages}
+                className="px-4 py-2 rounded-xl bg-[#A855F7] text-white text-xs font-semibold disabled:opacity-40"
+              >
+                Next
+              </button>
+            </div>
+          )}
+        </>
+      )}
+
+      {/* ── Service Detail Modal ── */}
+      {detailService && (
+        <div
+          className="absolute inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm px-5 pb-8"
+          onClick={() => setDetailService(null)}
+        >
+          <div
+            className="bg-[#171A21] rounded-3xl p-5 w-full max-h-[82vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-5">
+              <h3 className="text-lg font-bold text-white" style={{ fontFamily: "'Plus Jakarta Sans',sans-serif" }}>Service Details</h3>
+              <button
+                id="admin-service-detail-close"
+                onClick={() => setDetailService(null)}
+                className="w-9 h-9 rounded-full bg-[#20242D] flex items-center justify-center active:scale-90 transition-transform"
+              >
+                <X size={16} className="text-white" />
+              </button>
+            </div>
+
+            {/* Title + status */}
+            <div className="mb-4">
+              <div className="flex items-start justify-between gap-2 mb-1">
+                <p className="text-white font-bold text-base flex-1">{detailService.title}</p>
+                <span className={`shrink-0 text-xs font-bold px-3 py-1 rounded-full ${
+                  detailService.isActive ? "bg-[rgba(34,197,94,0.15)] text-[#22C55E]" : "bg-[rgba(239,68,68,0.15)] text-[#EF4444]"
+                }`}>
+                  {detailService.isActive ? "Active" : "Inactive"}
+                </span>
+              </div>
+              {detailService.description && (
+                <p className="text-[#A5A9B5] text-sm leading-relaxed">{detailService.description}</p>
+              )}
+            </div>
+
+            {/* Fields */}
+            <div className="flex flex-col gap-2">
+              {[
+                { label: "Category",   value: detailService.category.name },
+                { label: "Helper",     value: `${detailService.helper.user.firstName} ${detailService.helper.user.lastName}` },
+                { label: "Price",      value: formatPrice(detailService.price, detailService.priceType) },
+                { label: "Duration",   value: detailService.duration ? `${detailService.duration} min` : "—" },
+                { label: "Rating",     value: detailService.helper.rating ? `⭐ ${detailService.helper.rating}` : "—" },
+                { label: "Service ID", value: detailService.id },
+              ].map(({ label, value }) => (
+                <div key={label} className="bg-[#20242D] rounded-xl px-4 py-3 flex items-center justify-between gap-3">
+                  <span className="text-[#A5A9B5] text-xs font-semibold uppercase tracking-[0.08em] shrink-0">{label}</span>
+                  <span className="text-white text-sm font-medium text-right break-all">{value}</span>
+                </div>
+              ))}
+            </div>
+
+            <button
+              id="admin-service-detail-dismiss"
+              onClick={() => setDetailService(null)}
+              className="w-full mt-5 rounded-2xl bg-[#20242D] py-3 text-white font-semibold text-sm active:scale-[0.98] transition-transform"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Create Service Modal ── */}
+      {isCreateOpen && (
+        <div className="absolute inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm px-5 pb-8">
+          <div className="bg-[#171A21] rounded-3xl p-5 w-full max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-bold text-white" style={{ fontFamily: "'Plus Jakarta Sans',sans-serif" }}>New Service</h2>
+              <button
+                id="admin-service-create-close"
+                onClick={() => setIsCreateOpen(false)}
+                className="w-9 h-9 rounded-full bg-[#20242D] flex items-center justify-center active:scale-90 transition-transform"
+              >
+                <X size={16} className="text-white" />
+              </button>
+            </div>
+            <form onSubmit={handleCreate} className="flex flex-col gap-3">
+              {/* Title */}
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-[0.08em] text-[#A5A9B5] mb-1.5">Title <span className="text-[#EF4444]">*</span></label>
+                <input
+                  id="admin-service-form-title"
+                  value={createForm.title}
+                  onChange={(e) => setCreateForm({ ...createForm, title: e.target.value })}
+                  placeholder="e.g. Deep Home Cleaning"
+                  className="w-full rounded-xl border border-[rgba(255,255,255,0.08)] bg-[#20242D] px-3 py-2.5 text-sm text-white outline-none placeholder:text-[#A5A9B5] focus:border-[#A855F7]"
+                  required
+                />
+              </div>
+              {/* Description */}
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-[0.08em] text-[#A5A9B5] mb-1.5">Description</label>
+                <textarea
+                  id="admin-service-form-description"
+                  value={createForm.description ?? ""}
+                  onChange={(e) => setCreateForm({ ...createForm, description: e.target.value })}
+                  rows={3}
+                  placeholder="What does this service include?"
+                  className="w-full rounded-xl border border-[rgba(255,255,255,0.08)] bg-[#20242D] px-3 py-2.5 text-sm text-white outline-none placeholder:text-[#A5A9B5] focus:border-[#A855F7] resize-none"
+                />
+              </div>
+              {/* Category */}
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-[0.08em] text-[#A5A9B5] mb-1.5">Category <span className="text-[#EF4444]">*</span></label>
+                <select
+                  id="admin-service-form-category"
+                  value={createForm.categoryId}
+                  onChange={(e) => setCreateForm({ ...createForm, categoryId: e.target.value })}
+                  className="w-full rounded-xl border border-[rgba(255,255,255,0.08)] bg-[#20242D] px-3 py-2.5 text-sm text-white outline-none focus:border-[#A855F7]"
+                  required
+                >
+                  <option value="">— Select category —</option>
+                  {allCategories.map((cat) => (
+                    <option key={cat.id} value={cat.id}>{cat.icon ? `${cat.icon} ` : ""}{cat.name}</option>
+                  ))}
+                </select>
+              </div>
+              {/* Helper ID */}
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-[0.08em] text-[#A5A9B5] mb-1.5">Helper Profile ID <span className="text-[#EF4444]">*</span></label>
+                <input
+                  id="admin-service-form-helper-id"
+                  value={createForm.helperId}
+                  onChange={(e) => setCreateForm({ ...createForm, helperId: e.target.value })}
+                  placeholder="Helper profile UUID"
+                  className="w-full rounded-xl border border-[rgba(255,255,255,0.08)] bg-[#20242D] px-3 py-2.5 text-sm text-white outline-none placeholder:text-[#A5A9B5] focus:border-[#A855F7] font-mono text-xs"
+                  required
+                />
+                <p className="text-[#A5A9B5] text-[10px] mt-1">Must be a verified helper's profile ID</p>
+              </div>
+              {/* Price + Price Type */}
+              <div className="flex gap-3">
+                <div className="flex-1">
+                  <label className="block text-xs font-semibold uppercase tracking-[0.08em] text-[#A5A9B5] mb-1.5">Price (₹) <span className="text-[#EF4444]">*</span></label>
+                  <input
+                    id="admin-service-form-price"
+                    type="number"
+                    min={0}
+                    value={createForm.price}
+                    onChange={(e) => setCreateForm({ ...createForm, price: Number(e.target.value) })}
+                    className="w-full rounded-xl border border-[rgba(255,255,255,0.08)] bg-[#20242D] px-3 py-2.5 text-sm text-white outline-none placeholder:text-[#A5A9B5] focus:border-[#A855F7]"
+                    required
+                  />
+                </div>
+                <div className="flex-1">
+                  <label className="block text-xs font-semibold uppercase tracking-[0.08em] text-[#A5A9B5] mb-1.5">Price Type</label>
+                  <select
+                    id="admin-service-form-price-type"
+                    value={createForm.priceType}
+                    onChange={(e) => setCreateForm({ ...createForm, priceType: e.target.value })}
+                    className="w-full rounded-xl border border-[rgba(255,255,255,0.08)] bg-[#20242D] px-3 py-2.5 text-sm text-white outline-none focus:border-[#A855F7]"
+                  >
+                    <option value="FIXED">Fixed</option>
+                    <option value="HOURLY">Hourly</option>
+                  </select>
+                </div>
+              </div>
+              {/* Duration */}
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-[0.08em] text-[#A5A9B5] mb-1.5">Duration (min) <span className="text-[#A5A9B5] text-[10px] normal-case">(optional)</span></label>
+                <input
+                  id="admin-service-form-duration"
+                  type="number"
+                  min={0}
+                  value={createForm.duration ?? ""}
+                  onChange={(e) => setCreateForm({ ...createForm, duration: e.target.value ? Number(e.target.value) : undefined })}
+                  placeholder="e.g. 120"
+                  className="w-full rounded-xl border border-[rgba(255,255,255,0.08)] bg-[#20242D] px-3 py-2.5 text-sm text-white outline-none placeholder:text-[#A5A9B5] focus:border-[#A855F7]"
+                />
+              </div>
+
+              {createError && (
+                <div className="rounded-xl border border-[rgba(239,68,68,0.35)] bg-[rgba(239,68,68,0.08)] px-3 py-2 text-sm text-[#FCA5A5]">
+                  {createError}
+                </div>
+              )}
+
+              <div className="flex gap-3 pt-2">
+                <button type="button" onClick={() => setIsCreateOpen(false)} className="flex-1 h-12 rounded-2xl bg-[#20242D] text-white font-bold">Cancel</button>
+                <button
+                  id="admin-service-form-submit"
+                  type="submit"
+                  disabled={isCreating}
+                  className="flex-1 h-12 rounded-2xl font-bold text-white disabled:opacity-70"
+                  style={{ background: "linear-gradient(135deg,#A855F7 0%,#7C3AED 100%)" }}
+                >
+                  {isCreating ? "Creating…" : "Create Service"}
                 </button>
               </div>
             </form>
@@ -3682,7 +4235,7 @@ export default function App() {
 
   const tabScreens: Screen[] = ["home","explore","bookings","profile","helper-dashboard","helper-service-requests","helper-bookings","admin-dashboard"];
   const activeTab = tabScreens.includes(screen) ? screen : prevScreen;
-  const showBottomNav = !["detail","booking","addresses","booking-detail","register","verify-email","helper-booking-detail","admin-users","admin-bookings","admin-categories","admin-service-requests","helper-service-requests"].includes(screen);
+  const showBottomNav = !["detail","booking","addresses","booking-detail","register","verify-email","helper-booking-detail","admin-users","admin-bookings","admin-categories","admin-services","admin-service-requests","helper-service-requests"].includes(screen);
 
   const navItems = isHelper ? [
     { id:"helper-dashboard" as Screen, icon:Home,          label:"Dashboard" },
@@ -3710,7 +4263,7 @@ export default function App() {
   }, [isAuthenticated, isHelper, isAdmin, screen]);
 
   useEffect(() => {
-    const adminScreens: Screen[] = ["admin-dashboard", "admin-users", "admin-bookings", "admin-categories", "admin-service-requests"];
+    const adminScreens: Screen[] = ["admin-dashboard", "admin-users", "admin-bookings", "admin-categories", "admin-services", "admin-service-requests"];
     if (adminScreens.includes(screen) && !isAdmin) {
       setScreen("home");
       setPrevScreen("home");
@@ -3817,6 +4370,7 @@ export default function App() {
               {isAdmin && screen === "admin-users" && <AdminUsersScreen onBack={goBack} toast={pushToast} />}
               {isAdmin && screen === "admin-bookings" && <AdminBookingsScreen onBack={goBack} toast={pushToast} />}
               {isAdmin && screen === "admin-categories" && <AdminCategoriesScreen onBack={goBack} toast={pushToast} />}
+              {isAdmin && screen === "admin-services" && <AdminServicesScreen onBack={goBack} toast={pushToast} />}
               {isAdmin && screen === "admin-service-requests" && <AdminServiceRequestsScreen onBack={goBack} toast={pushToast} />}
             </div>
 

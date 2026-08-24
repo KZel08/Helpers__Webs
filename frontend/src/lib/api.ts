@@ -251,19 +251,6 @@ export const servicesApi = {
   delete: (id: string) => apiFetch<{ message: string }>(`/services/${id}`, { method: 'DELETE' }),
 };
 
-// ─── Helpers API ───────────────────────────────────────────────────────────
-
-export const helpersApi = {
-  list: (params?: { page?: number; limit?: number; categoryId?: string }) => {
-    const q = new URLSearchParams();
-    if (params?.page) q.set('page', String(params.page));
-    if (params?.limit) q.set('limit', String(params.limit));
-    if (params?.categoryId) q.set('categoryId', params.categoryId);
-    return apiFetch<{ helpers: unknown[]; total: number }>(`/helpers?${q.toString()}`);
-  },
-  get: (id: string) => apiFetch<unknown>(`/helpers/${id}`),
-};
-
 // ─── Bookings API ──────────────────────────────────────────────────────────
 
 /** Matches backend CreateBookingDto exactly. Do NOT add helperId or totalAmount. */
@@ -389,4 +376,248 @@ export const supportApi = {
   create: (body: { title: string; message: string; priority?: string }) =>
     apiFetch<unknown>('/support', { method: 'POST', body: JSON.stringify(body) }),
   list: () => apiFetch<unknown[]>('/support'),
+};
+
+// ─── Helpers API ────────────────────────────────────────────────────────────
+
+export interface HelperProfileData {
+  id: string;
+  userId: string;
+  bio?: string | null;
+  experienceYears?: number | null;
+  hourlyRate?: number | null;
+  rating: string;
+  totalReviews: number;
+  verificationStatus: string;
+  isAvailable: boolean;
+  services?: unknown[];
+  availability?: unknown[];
+  documents?: unknown[];
+  user?: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+    avatarUrl?: string | null;
+    phone?: string | null;
+  };
+}
+
+export interface UpdateHelperProfileRequest {
+  bio?: string;
+  experienceYears?: number;
+  hourlyRate?: number;
+  isAvailable?: boolean;
+}
+
+export interface HelperDocumentData {
+  id: string;
+  type: string;
+  fileName: string;
+  url: string;
+  mimeType: string;
+  fileSize: number;
+  verificationStatus: string;
+  createdAt: string;
+}
+
+export interface ServiceRequestData {
+  id: string;
+  title: string;
+  description?: string;
+  suggestedPrice: number;
+  suggestedPriceType: string;
+  suggestedDuration?: number;
+  status: string;
+  adminNotes?: string;
+  category: { id: string; name: string };
+  helper: {
+    user: { firstName: string; lastName: string; email: string; avatarUrl?: string };
+  };
+  createdAt: string;
+}
+
+export interface CreateServiceRequestPayload {
+  categoryId: string;
+  title: string;
+  description?: string;
+  suggestedPrice: number;
+  suggestedPriceType: string;
+  suggestedDuration?: number;
+}
+
+export const helpersApi = {
+  list: (params?: { page?: number; limit?: number; categoryId?: string }) => {
+    const q = new URLSearchParams();
+    if (params?.page) q.set('page', String(params.page));
+    if (params?.limit) q.set('limit', String(params.limit));
+    if (params?.categoryId) q.set('categoryId', params.categoryId);
+    return apiFetch<{ helpers: HelperProfileData[]; total: number }>(`/helpers?${q.toString()}`);
+  },
+  get: (id: string) => apiFetch<HelperProfileData>(`/helpers/${id}`),
+  getProfile: () => apiFetch<HelperProfileData>('/helpers/profile'),
+  updateProfile: (body: UpdateHelperProfileRequest) =>
+    apiFetch<HelperProfileData>('/helpers/profile', { method: 'PUT', body: JSON.stringify(body) }),
+  uploadDocument: (file: File, type: string) => {
+    const form = new FormData();
+    form.append('file', file);
+    form.append('type', type);
+    return apiFetch<HelperDocumentData>('/helpers/documents?type=' + encodeURIComponent(type), {
+      method: 'POST',
+      body: form,
+    });
+  },
+  getMyServiceRequests: (params?: { page?: number; limit?: number }) => {
+    const q = new URLSearchParams();
+    if (params?.page) q.set('page', String(params.page));
+    if (params?.limit) q.set('limit', String(params.limit));
+    return apiFetch<{ requests: ServiceRequestData[]; total: number; page: number; limit: number }>(`/services/requests?${q.toString()}`);
+  },
+  createServiceRequest: (body: CreateServiceRequestPayload) =>
+    apiFetch<ServiceRequestData>('/services/requests', { method: 'POST', body: JSON.stringify(body) }),
+};
+
+// ─── Admin API ─────────────────────────────────────────────────────────────
+
+export interface AdminStatsData {
+  totalUsers: number;
+  totalHelpers: number;
+  totalBookings: number;
+  totalRevenue: number;
+  pendingVerifications: number;
+}
+
+export interface AdminUserData {
+  id: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  role: string;
+  isVerified: boolean;
+  isActive: boolean;
+  createdAt: string;
+}
+
+export interface AdminBookingData {
+  id: string;
+  status: string;
+  totalAmount: number;
+  bookingDate: string;
+  scheduledAt?: string | null;
+  service: { title: string };
+  customer: { firstName: string; lastName: string; email: string };
+  helper: { user: { firstName: string; lastName: string } };
+  payment: { status: string; amount: number } | null;
+  createdAt: string;
+}
+
+export interface AdminTicketData {
+  id: string;
+  title: string;
+  status: string;
+  priority: string;
+  user: { firstName: string; lastName: string; email: string };
+  createdAt: string;
+}
+
+export interface AdminServiceRequestData {
+  id: string;
+  title: string;
+  description?: string;
+  suggestedPrice: number;
+  suggestedPriceType: string;
+  status: string;
+  adminNotes?: string;
+  category: { id: string; name: string };
+  helper: {
+    user: { firstName: string; lastName: string; email: string; avatarUrl?: string };
+  };
+  createdAt: string;
+}
+
+export interface AdminCategoryData {
+  id: string;
+  name: string;
+  description?: string;
+  icon?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateCategoryPayload {
+  name: string;
+  description?: string;
+  icon?: string;
+}
+
+export interface UpdateCategoryPayload {
+  name?: string;
+  description?: string;
+  icon?: string;
+}
+
+export interface CreateAdminServicePayload {
+  title: string;
+  description?: string;
+  categoryId: string;
+  helperId: string;
+  price: number;
+  priceType: string;
+  duration?: number;
+}
+
+export interface VerifyHelperPayload {
+  approved: boolean;
+}
+
+export interface ReviewServiceRequestPayload {
+  approved: boolean;
+  adminNotes?: string;
+  title?: string;
+  description?: string;
+  price?: number;
+  priceType?: string;
+  duration?: number;
+}
+
+export const adminApi = {
+  getStats: () => apiFetch<AdminStatsData>('/admin/stats'),
+  getUsers: (params?: { page?: number; limit?: number }) => {
+    const q = new URLSearchParams();
+    if (params?.page) q.set('page', String(params.page));
+    if (params?.limit) q.set('limit', String(params.limit));
+    return apiFetch<{ users: AdminUserData[]; total: number; page: number; limit: number }>(`/admin/users?${q.toString()}`);
+  },
+  getBookings: (params?: { page?: number; limit?: number }) => {
+    const q = new URLSearchParams();
+    if (params?.page) q.set('page', String(params.page));
+    if (params?.limit) q.set('limit', String(params.limit));
+    return apiFetch<{ bookings: AdminBookingData[]; total: number; page: number; limit: number }>(`/admin/bookings?${q.toString()}`);
+  },
+  getTickets: (params?: { page?: number; limit?: number }) => {
+    const q = new URLSearchParams();
+    if (params?.page) q.set('page', String(params.page));
+    if (params?.limit) q.set('limit', String(params.limit));
+    return apiFetch<{ tickets: AdminTicketData[]; total: number; page: number; limit: number }>(`/admin/tickets?${q.toString()}`);
+  },
+  getServiceRequests: (params?: { page?: number; limit?: number; status?: string }) => {
+    const q = new URLSearchParams();
+    if (params?.page) q.set('page', String(params.page));
+    if (params?.limit) q.set('limit', String(params.limit));
+    if (params?.status) q.set('status', params.status);
+    return apiFetch<{ requests: AdminServiceRequestData[]; total: number; page: number; limit: number }>(`/admin/service-requests?${q.toString()}`);
+  },
+  reviewServiceRequest: (id: string, body: ReviewServiceRequestPayload) =>
+    apiFetch<unknown>(`/admin/service-requests/${id}/review`, { method: 'PUT', body: JSON.stringify(body) }),
+  getCategories: () => apiFetch<AdminCategoryData[]>('/admin/categories'),
+  createCategory: (body: CreateCategoryPayload) =>
+    apiFetch<AdminCategoryData>('/admin/categories', { method: 'POST', body: JSON.stringify(body) }),
+  updateCategory: (id: string, body: UpdateCategoryPayload) =>
+    apiFetch<AdminCategoryData>(`/admin/categories/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
+  deleteCategory: (id: string) =>
+    apiFetch<{ message: string }>(`/admin/categories/${id}`, { method: 'DELETE' }),
+  createService: (body: CreateAdminServicePayload) =>
+    apiFetch<ServiceData>('/admin/services', { method: 'POST', body: JSON.stringify(body) }),
+  verifyHelper: (id: string, body: VerifyHelperPayload) =>
+    apiFetch<{ id: string; verificationStatus: string }>(`/admin/helpers/${id}/verify`, { method: 'PUT', body: JSON.stringify(body) }),
 };
