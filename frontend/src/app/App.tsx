@@ -3,9 +3,11 @@ import { useCategories } from "../hooks/useCategories";
 import { useServices, useService } from "../hooks/useServices";
 import { useAddresses } from "../hooks/useAddresses";
 import { useBookings } from "../hooks/useBookings";
+import { useAdmin } from "../hooks/useAdmin";
+import { useHelperServiceRequests } from "../hooks/useHelperServiceRequests";
 import { useAuth } from "../contexts/AuthContext";
-import type { ServiceData, AddressData, CreateAddressRequest, UpdateAddressRequest, BookingData } from "../lib/api";
-import { bookingsApi, paymentsApi } from "../lib/api";
+import type { ServiceData, AddressData, CreateAddressRequest, UpdateAddressRequest, BookingData, AdminStatsData, AdminUserData, AdminBookingData, AdminCategoryData, AdminServiceRequestData, CreateCategoryPayload, UpdateCategoryPayload, ReviewServiceRequestPayload, ServiceRequestData, CreateServiceRequestPayload } from "../lib/api";
+import { bookingsApi, paymentsApi, helpersApi, adminApi } from "../lib/api";
 import { loadRazorpayScript } from "../lib/razorpay";
 import {
   MapPin, Bell, Search, Star, ChevronRight, Home, Grid,
@@ -13,6 +15,7 @@ import {
   CheckCircle2, ArrowLeft, Filter,
   Plus, Minus, Heart, TrendingUp, Flame, Award, ThumbsUp,
   Repeat2, Gift, Timer, X, Share2, Copy, SlidersHorizontal,
+  Edit2, Users, Folder, ClipboardList, Trash2, Check,
 } from "lucide-react";
 
 // ─── Date/Time helpers ────────────────────────────────────────────────────────────────
@@ -48,7 +51,7 @@ function buildBookingIso(dateLabel: string, timeLabel: string): string | null {
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type Screen = "home" | "explore" | "bookings" | "profile" | "detail" | "booking" | "addresses" | "booking-detail";
+type Screen = "home" | "explore" | "bookings" | "profile" | "detail" | "booking" | "addresses" | "booking-detail" | "helper-dashboard" | "helper-profile" | "helper-services" | "helper-bookings" | "admin-dashboard" | "admin-users" | "admin-bookings" | "admin-categories" | "admin-service-requests" | "helper-booking-detail" | "helper-service-requests";
 
 interface Provider {
   id: string;
@@ -2153,14 +2156,1185 @@ function ConfirmModal({ booking, onClose }: { booking: BookingData; onClose: () 
   );
 }
 
-// ─── Bottom nav ───────────────────────────────────────────────────────────────
+// ─── Helper Dashboard ────────────────────────────────────────────────────────
 
-const navItems = [
-  { id:"home"     as Screen, icon:Home,          label:"Home"     },
-  { id:"explore"  as Screen, icon:Grid,          label:"Explore"  },
-  { id:"bookings" as Screen, icon:CalendarCheck, label:"Bookings" },
-  { id:"profile"  as Screen, icon:User,          label:"Profile"  },
-];
+function HelperDashboardScreen({ onNavigate, toast }: { onNavigate: (s: Screen, id?: string) => void; toast: (msg: string, color?: string) => void }) {
+  const { profile, isLoading, error, refetch } = useHelperProfile();
+
+  if (isLoading) {
+    return (
+      <div className="flex flex-col gap-4 pb-4 pt-4 px-2 animate-pulse">
+        <div className="h-24 bg-[#171A21] rounded-2xl w-full" />
+        <div className="grid grid-cols-2 gap-3 mt-2">
+          <div className="h-20 bg-[#171A21] rounded-2xl w-full" />
+          <div className="h-20 bg-[#171A21] rounded-2xl w-full" />
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center pt-12 pb-4">
+        <p className="text-[#EF4444] text-sm mb-3">{error}</p>
+        <button onClick={refetch} className="text-[#5B6CFF] text-sm font-semibold">Retry</button>
+      </div>
+    );
+  }
+
+  if (!profile) {
+    return (
+      <div className="flex flex-col items-center justify-center pt-12 pb-4">
+        <p className="text-[#A5A9B5] text-sm">Profile not found.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-5 pb-4 pt-2">
+      <div className="flex items-center justify-between">
+        <h2 className="text-xl font-bold text-white" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>Dashboard</h2>
+      </div>
+
+      {/* Profile summary */}
+      <div className="bg-[#171A21] rounded-2xl p-5 flex items-center gap-4">
+        <div className="w-14 h-14 rounded-full bg-gradient-to-br from-[#5B6CFF] to-[#7E57FF] flex items-center justify-center text-white font-bold text-xl">
+          {profile.user?.firstName?.[0]?.toUpperCase() ?? "H"}
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="font-bold text-white text-lg truncate">
+            {profile.user?.firstName} {profile.user?.lastName}
+          </p>
+          <div className="flex items-center gap-2 mt-1">
+            <span className="text-[#A5A9B5] text-xs">Status:</span>
+            <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${profile.verificationStatus === 'VERIFIED' ? 'bg-[rgba(34,197,94,0.15)] text-[#22C55E]' : 'bg-[rgba(245,158,11,0.15)] text-[#F59E0B]'}`}>
+              {profile.verificationStatus}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* Stats */}
+      <div className="grid grid-cols-2 gap-3">
+        <div className="bg-[#171A21] rounded-2xl p-4">
+          <p className="text-[#A5A9B5] text-xs font-semibold mb-1">Rating</p>
+          <div className="flex items-center gap-1.5">
+            <Star size={16} className="text-[#F59E0B]" fill="#F59E0B" />
+            <span className="text-xl font-bold text-white">{profile.rating}</span>
+          </div>
+        </div>
+        <div className="bg-[#171A21] rounded-2xl p-4">
+          <p className="text-[#A5A9B5] text-xs font-semibold mb-1">Reviews</p>
+          <div className="flex items-center gap-1.5">
+            <Award size={16} className="text-[#5B6CFF]" />
+            <span className="text-xl font-bold text-white">{profile.totalReviews}</span>
+          </div>
+        </div>
+      </div>
+
+      <div className="bg-[#171A21] rounded-2xl p-5 text-center mt-2">
+         <p className="text-[#A5A9B5] text-sm">More analytics coming soon!</p>
+      </div>
+    </div>
+  );
+}
+
+// ─── Helper Bookings ─────────────────────────────────────────────────────────
+
+function HelperBookingsScreen({ onNavigate, onViewDetails, toast }: { onNavigate: (s: Screen, id?: string) => void; onViewDetails: (id: string) => void; toast: (msg: string, color?: string) => void }) {
+  const { bookings, isLoading, error, refetch } = useBookings("helper");
+  const [tab, setTab] = useState<"active" | "past">("active");
+
+  const active = bookings.filter((b) => (UPCOMING_STATUSES as string[]).includes(b.status));
+  const past = bookings.filter((b) => !(UPCOMING_STATUSES as string[]).includes(b.status));
+  const filtered = tab === "active" ? active : past;
+
+  return (
+    <div className="flex flex-col gap-5 pb-4">
+      <div className="pt-2">
+        <h2 className="text-xl font-bold text-white" style={{ fontFamily: "'Plus Jakarta Sans',sans-serif" }}>Job Assignments</h2>
+        <p className="text-[#A5A9B5] text-sm mt-0.5">Manage your upcoming jobs</p>
+      </div>
+
+      {/* Tab switcher */}
+      <div className="flex bg-[#20242D] rounded-2xl p-1">
+        {(["active", "past"] as const).map((t) => (
+          <button
+            key={t}
+            onClick={() => setTab(t)}
+            className={`flex-1 py-2.5 rounded-xl text-sm font-semibold transition-colors capitalize ${
+              tab === t ? "bg-[#5B6CFF] text-white" : "text-[#A5A9B5]"
+            }`}
+          >
+            {t}
+          </button>
+        ))}
+      </div>
+
+      {isLoading ? (
+        <div className="flex flex-col gap-3">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <BookingSkeletonCard key={i} />
+          ))}
+        </div>
+      ) : error ? (
+         <div className="rounded-2xl border border-[rgba(239,68,68,0.35)] bg-[rgba(239,68,68,0.08)] p-6 text-center">
+          <CalendarCheck size={36} className="text-[#EF4444] mx-auto mb-3 opacity-60" />
+          <p className="text-[#FCA5A5] text-sm mb-3">{error}</p>
+          <button onClick={() => refetch()} className="text-[#5B6CFF] text-sm font-semibold bg-[rgba(91,108,255,0.12)] px-4 py-2 rounded-xl">Retry</button>
+        </div>
+      ) : filtered.length === 0 ? (
+         <div className="text-center py-12">
+          <CalendarCheck size={48} className="text-[#A5A9B5] mx-auto mb-3 opacity-30" />
+          <p className="text-[#A5A9B5]">No {tab} assignments</p>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-3">
+          {filtered.map((b) => {
+            const customerName = b.customer ? `${b.customer.firstName} ${b.customer.lastName}`.trim() : "Customer";
+            const scheduledDisplay = formatBookingDate(b.scheduledAt ?? b.bookingDate);
+            return (
+              <div key={b.id} className="bg-[#171A21] rounded-2xl p-4">
+                <div className="flex items-start justify-between gap-2 mb-3">
+                  <div className="flex-1 min-w-0">
+                    <p className="font-bold text-white text-sm truncate">{b.service?.title ?? 'Service'}</p>
+                    <p className="text-[#A5A9B5] text-xs mt-0.5 truncate">{customerName}</p>
+                  </div>
+                  <BookingStatusPill status={b.status} />
+                </div>
+                <div className="flex items-center gap-1.5 text-xs text-[#A5A9B5] mb-1">
+                  <CalendarCheck size={11} className="shrink-0" />
+                  <span>{scheduledDisplay}</span>
+                </div>
+                <div className="flex items-center justify-between mt-4 pt-3 border-t border-[rgba(255,255,255,0.06)]">
+                  <span className="text-white font-bold">{typeof b.totalAmount === "number" ? `₹${b.totalAmount.toLocaleString()}` : "—"}</span>
+                  <button onClick={() => onViewDetails(b.id)} className="text-xs font-semibold text-white bg-[#20242D] px-3 py-1.5 rounded-xl active:scale-95">View Details</button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Helper Booking Details ───────────────────────────────────────────────────
+
+function HelperBookingDetailScreen({ bookingId, onBack, toast }: { bookingId: string; onBack: () => void; toast: (msg: string, color?: string) => void }) {
+  const [booking, setBooking] = useState<BookingData | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [isUpdating, setIsUpdating] = useState(false);
+
+  const fetchBooking = async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const data = await bookingsApi.get(bookingId);
+      setBooking(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load booking.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchBooking();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bookingId]);
+
+  const handleUpdateStatus = async (status: HelperBookingStatus) => {
+    if (!booking || isUpdating) return;
+    setIsUpdating(true);
+    try {
+      const updated = await bookingsApi.updateStatus(booking.id, status);
+      setBooking(updated);
+      toast(`Status updated to ${status}`, "#22C55E");
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "Failed to update status", "#EF4444");
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex flex-col pb-4 animate-pulse">
+        <div className="flex items-center gap-4 pt-2 pb-5">
+          <div className="w-10 h-10 rounded-full bg-[#20242D]" />
+          <div className="h-5 bg-[#20242D] rounded w-36" />
+        </div>
+        <div className="bg-[#171A21] rounded-2xl h-48" />
+      </div>
+    );
+  }
+
+  if (error || !booking) {
+    return (
+       <div className="flex flex-col gap-4 pt-2 pb-4">
+        <div className="flex items-center gap-4">
+          <button onClick={onBack} className="w-10 h-10 rounded-full bg-[#20242D] flex items-center justify-center">
+            <ArrowLeft size={18} className="text-white" />
+          </button>
+          <h2 className="font-bold text-white text-lg">Job Details</h2>
+        </div>
+        <div className="text-center py-12">
+          <p className="text-[#EF4444] text-sm mb-3">{error || "Not found"}</p>
+          {error && <button onClick={fetchBooking} className="text-[#5B6CFF] text-sm font-semibold">Retry</button>}
+        </div>
+      </div>
+    );
+  }
+
+  const customerName = booking.customer ? `${booking.customer.firstName} ${booking.customer.lastName}`.trim() : "Customer";
+  const scheduledDisplay = formatBookingDate(booking.scheduledAt ?? booking.bookingDate);
+
+  const addressObj = booking.address;
+  const addressString = addressObj ? [addressObj.houseNo, addressObj.street, addressObj.city, addressObj.state, addressObj.postalCode].filter(Boolean).join(", ") : "No address provided";
+
+  return (
+    <div className="flex flex-col pb-4">
+      <div className="flex items-center gap-4 pt-2 pb-5">
+        <button onClick={onBack} className="w-10 h-10 rounded-full bg-[#20242D] flex items-center justify-center active:scale-90">
+          <ArrowLeft size={18} className="text-white" />
+        </button>
+        <div className="flex-1 min-w-0">
+          <h2 className="font-bold text-white text-lg truncate" style={{ fontFamily: "'Plus Jakarta Sans',sans-serif" }}>
+            {booking.service?.title}
+          </h2>
+          <p className="text-[#A5A9B5] text-xs mt-0.5">Job details</p>
+        </div>
+        <BookingStatusPill status={booking.status} />
+      </div>
+
+      <div className="bg-[#171A21] rounded-2xl px-4">
+        <BookingDetailRow label="Booking ID" value={booking.id} />
+        <BookingDetailRow label="Customer" value={customerName} />
+        {booking.customer?.phone && <BookingDetailRow label="Phone" value={booking.customer.phone} />}
+        <BookingDetailRow label="Scheduled" value={scheduledDisplay} />
+        <BookingDetailRow label="Amount" value={typeof booking.totalAmount === "number" ? `₹${booking.totalAmount.toLocaleString()}` : "—"} />
+        <BookingDetailRow label="Address" value={addressString} />
+      </div>
+
+      {booking.status === "PENDING" && (
+        <div className="mt-4 flex gap-3">
+          <button onClick={() => handleUpdateStatus("ACCEPTED")} disabled={isUpdating} className="flex-1 h-12 rounded-2xl font-bold text-white bg-[#5B6CFF] active:scale-95 disabled:opacity-50">
+            Accept Job
+          </button>
+        </div>
+      )}
+
+      {booking.status === "ACCEPTED" && (
+        <div className="mt-4 flex gap-3">
+          <button onClick={() => handleUpdateStatus("ONGOING")} disabled={isUpdating} className="flex-1 h-12 rounded-2xl font-bold text-white bg-[#06B6D4] active:scale-95 disabled:opacity-50">
+            Start Job
+          </button>
+        </div>
+      )}
+
+      {booking.status === "ONGOING" && (
+        <div className="mt-4 flex gap-3">
+          <button onClick={() => handleUpdateStatus("COMPLETED")} disabled={isUpdating} className="flex-1 h-12 rounded-2xl font-bold text-white bg-[#22C55E] active:scale-95 disabled:opacity-50">
+            Complete Job
+          </button>
+        </div>
+      )}
+
+      <button onClick={onBack} className="mt-3 w-full h-12 rounded-2xl font-bold text-[#A5A9B5] bg-[#20242D] flex items-center justify-center gap-2 active:opacity-80 transition-opacity">
+        Back to Jobs
+      </button>
+    </div>
+  );
+}
+
+// ─── Helper Profile ──────────────────────────────────────────────────────────
+
+function HelperProfileScreen({ onNavigate, toast }: { onNavigate: (s: Screen) => void; toast: (msg: string, color?: string) => void }) {
+  const { user, logout } = useAuth();
+  const { profile, isLoading, error, refetch } = useHelperProfile();
+
+  const [isEditing, setIsEditing] = useState(false);
+  const [editForm, setEditForm] = useState({
+    bio: "",
+    experienceYears: 0,
+    hourlyRate: 0,
+    isAvailable: false,
+  });
+  const [isSaving, setIsSaving] = useState(false);
+
+  // Initialize form when profile loads and editing starts
+  useEffect(() => {
+    if (profile && isEditing) {
+      setEditForm({
+        bio: profile.bio || "",
+        experienceYears: profile.experienceYears || 0,
+        hourlyRate: profile.hourlyRate || 0,
+        isAvailable: profile.isAvailable || false,
+      });
+    }
+  }, [profile, isEditing]);
+
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSaving(true);
+    try {
+      await helpersApi.updateProfile({
+        bio: editForm.bio,
+        experienceYears: Number(editForm.experienceYears),
+        hourlyRate: Number(editForm.hourlyRate),
+        isAvailable: editForm.isAvailable,
+      });
+      toast("Profile updated successfully!", "#22C55E");
+      setIsEditing(false);
+      refetch();
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "Failed to update profile", "#EF4444");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleSignOut = async () => {
+    try {
+      await logout();
+      toast("Signed out successfully", "#22C55E");
+    } catch {
+      toast("Signed out", "#5B6CFF");
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex flex-col gap-4 pb-4 pt-4 px-2 animate-pulse">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-24 h-24 rounded-full bg-[#171A21]" />
+          <div className="h-6 bg-[#171A21] rounded w-32" />
+        </div>
+        <div className="h-32 bg-[#171A21] rounded-2xl w-full mt-4" />
+        <div className="h-24 bg-[#171A21] rounded-2xl w-full" />
+      </div>
+    );
+  }
+
+  if (error || !profile) {
+    return (
+      <div className="flex flex-col items-center justify-center pt-12 pb-4">
+        <p className="text-[#EF4444] text-sm mb-3">{error || "Profile not found"}</p>
+        <button onClick={refetch} className="text-[#5B6CFF] text-sm font-semibold">Retry</button>
+      </div>
+    );
+  }
+
+  const fullName = user ? `${user.firstName} ${user.lastName}`.trim() : "";
+  const initial = fullName ? fullName.charAt(0).toUpperCase() : "?";
+
+  if (isEditing) {
+    return (
+      <div className="flex flex-col gap-5 pb-4 pt-2">
+        <div className="flex items-center justify-between">
+          <h2 className="text-xl font-bold text-white" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>Edit Profile</h2>
+          <button onClick={() => setIsEditing(false)} className="text-[#A5A9B5] text-sm font-semibold active:scale-95">Cancel</button>
+        </div>
+
+        <form onSubmit={handleSave} className="flex flex-col gap-4">
+          <div className="flex flex-col gap-1.5">
+            <label className="text-[#A5A9B5] text-xs font-semibold px-1">Description / Bio</label>
+            <textarea
+              required
+              maxLength={500}
+              value={editForm.bio}
+              onChange={(e) => setEditForm(prev => ({ ...prev, bio: e.target.value }))}
+              className="w-full bg-[#171A21] border border-[rgba(255,255,255,0.06)] rounded-2xl p-4 text-white text-sm outline-none focus:border-[#5B6CFF] transition-colors resize-none"
+              rows={4}
+              placeholder="Tell customers about your experience..."
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[#A5A9B5] text-xs font-semibold px-1">Experience (Years)</label>
+              <input
+                type="number"
+                min="0"
+                max="50"
+                required
+                value={editForm.experienceYears}
+                onChange={(e) => setEditForm(prev => ({ ...prev, experienceYears: parseInt(e.target.value) || 0 }))}
+                className="w-full h-12 bg-[#171A21] border border-[rgba(255,255,255,0.06)] rounded-2xl px-4 text-white text-sm outline-none focus:border-[#5B6CFF] transition-colors"
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[#A5A9B5] text-xs font-semibold px-1">Hourly Rate (₹)</label>
+              <input
+                type="number"
+                min="0"
+                required
+                value={editForm.hourlyRate}
+                onChange={(e) => setEditForm(prev => ({ ...prev, hourlyRate: parseInt(e.target.value) || 0 }))}
+                className="w-full h-12 bg-[#171A21] border border-[rgba(255,255,255,0.06)] rounded-2xl px-4 text-white text-sm outline-none focus:border-[#5B6CFF] transition-colors"
+              />
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between bg-[#171A21] border border-[rgba(255,255,255,0.06)] rounded-2xl p-4 mt-2">
+            <div>
+              <p className="text-white text-sm font-semibold">Available for Work</p>
+              <p className="text-[#A5A9B5] text-xs mt-0.5">Show your profile in search results</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setEditForm(prev => ({ ...prev, isAvailable: !prev.isAvailable }))}
+              className={`w-12 h-6 rounded-full p-1 transition-colors ${editForm.isAvailable ? "bg-[#22C55E]" : "bg-[#20242D]"}`}
+            >
+              <div className={`w-4 h-4 bg-white rounded-full transition-transform ${editForm.isAvailable ? "translate-x-6" : "translate-x-0"}`} />
+            </button>
+          </div>
+
+          <button
+            type="submit"
+            disabled={isSaving}
+            className="w-full h-12 rounded-2xl font-bold text-white mt-4 active:scale-[0.98] transition-transform disabled:opacity-50"
+            style={{ background:"linear-gradient(135deg,#5B6CFF,#7E57FF)" }}
+          >
+            {isSaving ? "Saving..." : "Save Changes"}
+          </button>
+        </form>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-5 pb-4">
+      {/* Header Info */}
+      <div className="pt-4 flex flex-col items-center gap-3 relative">
+        <button onClick={() => setIsEditing(true)} className="absolute top-0 right-0 p-2 bg-[#171A21] rounded-full active:scale-90 transition-transform">
+           <Edit2 size={16} className="text-[#A5A9B5]" />
+        </button>
+        <div className="w-24 h-24 rounded-full bg-gradient-to-br from-[#5B6CFF] to-[#7E57FF] flex items-center justify-center text-3xl font-bold text-white">
+          {initial}
+        </div>
+        <div className="text-center">
+          <h2 className="text-xl font-bold text-white flex items-center justify-center gap-1.5" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>
+            {fullName || "Helper"}
+            {profile.verificationStatus === 'VERIFIED' && <CheckCircle2 size={16} className="text-[#22C55E]" />}
+          </h2>
+          <p className="text-[#A5A9B5] text-sm">{user?.email ?? ""}</p>
+        </div>
+        <div className="flex gap-2">
+          <span className={`text-xs font-bold px-3 py-1 rounded-full ${profile.isAvailable ? 'bg-[rgba(34,197,94,0.15)] text-[#22C55E]' : 'bg-[rgba(165,169,181,0.15)] text-[#A5A9B5]'}`}>
+            {profile.isAvailable ? "Available" : "Not Available"}
+          </span>
+          <span className={`text-xs font-bold px-3 py-1 rounded-full ${profile.verificationStatus === 'VERIFIED' ? 'bg-[rgba(34,197,94,0.15)] text-[#22C55E]' : 'bg-[rgba(245,158,11,0.15)] text-[#F59E0B]'}`}>
+            {profile.verificationStatus}
+          </span>
+        </div>
+      </div>
+
+      {/* Details Card */}
+      <div className="bg-[#171A21] rounded-2xl p-4 flex flex-col gap-4">
+        <div>
+          <p className="text-[#A5A9B5] text-xs font-semibold mb-1">About Me</p>
+          <p className="text-white text-sm leading-relaxed">{profile.bio || "No description provided."}</p>
+        </div>
+        <div className="flex border-t border-[rgba(255,255,255,0.06)] pt-4">
+          <div className="flex-1">
+            <p className="text-[#A5A9B5] text-xs font-semibold mb-1">Experience</p>
+            <p className="text-white text-sm font-semibold">{profile.experienceYears ? `${profile.experienceYears} Years` : "—"}</p>
+          </div>
+          <div className="w-[1px] bg-[rgba(255,255,255,0.06)]" />
+          <div className="flex-1 pl-4">
+            <p className="text-[#A5A9B5] text-xs font-semibold mb-1">Hourly Rate</p>
+            <p className="text-white text-sm font-semibold">{profile.hourlyRate ? `₹${profile.hourlyRate}` : "—"}</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Services/Categories */}
+      {profile.services && profile.services.length > 0 && (
+        <div className="bg-[#171A21] rounded-2xl p-4">
+           <p className="text-[#A5A9B5] text-xs font-semibold mb-3">Services Offered</p>
+           <div className="flex flex-col gap-3">
+             {profile.services.map((s: any) => (
+                <div key={s.id} className="flex justify-between items-center text-sm">
+                  <span className="text-white font-medium">{s.title}</span>
+                  <span className="text-[#A5A9B5]">{s.category?.name}</span>
+                </div>
+             ))}
+           </div>
+        </div>
+      )}
+
+      <button onClick={handleSignOut} className="mt-4 w-full h-14 bg-[rgba(239,68,68,0.08)] border border-[rgba(239,68,68,0.2)] rounded-2xl flex items-center justify-center gap-2 text-[#EF4444] font-bold active:scale-[0.98] transition-transform">
+        <span className="text-lg">🚪</span> Sign Out
+      </button>
+    </div>
+  );
+}
+
+// ─── Helper Service Requests ──────────────────────────────────────────────────
+
+function HelperServiceRequestsScreen({ onBack, toast }: { onBack: () => void; toast: (msg: string, color?: string) => void }) {
+  const [page, setPage] = useState(1);
+  const limit = 10;
+  const { requests, total, isLoading, error, refetch, create } = useHelperServiceRequests(page, limit);
+  const { categories } = useCategories();
+  const totalPages = Math.max(1, Math.ceil(total / limit));
+
+  const [isFormOpen, setIsFormOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [form, setForm] = useState<CreateServiceRequestPayload>({
+    categoryId: "",
+    title: "",
+    description: "",
+    suggestedPrice: 0,
+    suggestedPriceType: "FIXED",
+    suggestedDuration: undefined,
+  });
+
+  const openCreate = () => {
+    setForm({ categoryId: "", title: "", description: "", suggestedPrice: 0, suggestedPriceType: "FIXED", suggestedDuration: undefined });
+    setSubmitError(null);
+    setIsFormOpen(true);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!form.categoryId || !form.title.trim() || !form.suggestedPrice || form.suggestedPrice <= 0) {
+      setSubmitError("Please fill in all required fields.");
+      return;
+    }
+    setIsSubmitting(true);
+    setSubmitError(null);
+    try {
+      await create({
+        categoryId: form.categoryId,
+        title: form.title.trim(),
+        description: form.description?.trim() || undefined,
+        suggestedPrice: Number(form.suggestedPrice),
+        suggestedPriceType: form.suggestedPriceType,
+        suggestedDuration: form.suggestedDuration || undefined,
+      });
+      toast("Service request created successfully.", "#22C55E");
+      setIsFormOpen(false);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to create service request.";
+      setSubmitError(message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const statusMap: Record<string, { label: string; cls: string }> = {
+    PENDING:  { label: "Pending",  cls: "text-[#FBBF24] bg-[rgba(245,158,11,0.15)]" },
+    APPROVED: { label: "Approved", cls: "text-[#22C55E] bg-[rgba(34,197,94,0.15)]" },
+    REJECTED: { label: "Rejected", cls: "text-[#EF4444] bg-[rgba(239,68,68,0.15)]" },
+  };
+
+  return (
+    <div className="flex flex-col gap-4 pb-4 pt-2">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <button onClick={onBack} className="w-10 h-10 rounded-full bg-[#20242D] flex items-center justify-center active:scale-90 transition-transform">
+            <ArrowLeft size={18} className="text-white" />
+          </button>
+          <h2 className="font-bold text-white text-lg" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>My Service Requests</h2>
+        </div>
+        <button onClick={openCreate} className="flex items-center gap-2 rounded-xl bg-[#5B6CFF] px-3 py-2 text-xs font-bold text-white active:scale-95 transition-transform">
+          <Plus size={14} /> New
+        </button>
+      </div>
+
+      {isLoading ? (
+        <div className="flex flex-col gap-3">
+          {Array.from({ length: 5 }).map((_, i) => <div key={i} className="h-24 bg-[#171A21] rounded-2xl animate-pulse" />)}
+        </div>
+      ) : error ? (
+        <div className="rounded-2xl border border-[rgba(239,68,68,0.35)] bg-[rgba(239,68,68,0.08)] p-6 text-center">
+          <p className="text-[#FCA5A5] text-sm mb-3">{error}</p>
+          <button onClick={refetch} className="text-[#5B6CFF] text-sm font-semibold bg-[rgba(91,108,255,0.12)] px-4 py-2 rounded-xl">Retry</button>
+        </div>
+      ) : requests.length === 0 ? (
+        <div className="text-center py-12">
+          <ClipboardList size={40} className="text-[#A5A9B5] mx-auto mb-3 opacity-30" />
+          <p className="text-[#A5A9B5]">No service requests yet</p>
+          <button onClick={openCreate} className="mt-3 text-[#5B6CFF] text-sm font-semibold">Create your first request</button>
+        </div>
+      ) : (
+        <>
+          <div className="flex flex-col gap-3">
+            {requests.map((req) => {
+              const statusInfo = statusMap[req.status] || { label: req.status, cls: "text-[#A5A9B5] bg-[#20242D]" };
+              return (
+                <div key={req.id} className="bg-[#171A21] rounded-2xl p-4">
+                  <div className="flex items-start justify-between gap-2 mb-2">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-white font-bold text-sm truncate">{req.title}</p>
+                      <p className="text-[#A5A9B5] text-xs mt-0.5">{req.category.name}</p>
+                    </div>
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${statusInfo.cls}`}>{statusInfo.label}</span>
+                  </div>
+                  {req.description && <p className="text-[#A5A9B5] text-xs mb-2 line-clamp-2">{req.description}</p>}
+                  <div className="flex items-center justify-between text-xs text-[#A5A9B5]">
+                    <span>₹{req.suggestedPrice.toLocaleString()} / {req.suggestedPriceType}</span>
+                    {req.suggestedDuration && <span>{req.suggestedDuration} min</span>}
+                  </div>
+                  {req.adminNotes && <p className="text-[#A5A9B5] text-[10px] mt-1">Note: {req.adminNotes}</p>}
+                </div>
+              );
+            })}
+          </div>
+
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between mt-2">
+              <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1} className="px-4 py-2 rounded-xl bg-[#20242D] text-white text-xs font-semibold disabled:opacity-50">Previous</button>
+              <span className="text-[#A5A9B5] text-xs">Page {page} of {totalPages}</span>
+              <button onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page === totalPages} className="px-4 py-2 rounded-xl bg-[#5B6CFF] text-white text-xs font-semibold disabled:opacity-50">Next</button>
+            </div>
+          )}
+        </>
+      )}
+
+      {isFormOpen && (
+        <div className="absolute inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm px-5 pb-8">
+          <div className="bg-[#171A21] rounded-3xl p-5 w-full max-h-[88vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-bold text-white" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>New Service Request</h2>
+              <button onClick={() => setIsFormOpen(false)} className="w-9 h-9 rounded-full bg-[#20242D] flex items-center justify-center active:scale-90 transition-transform">
+                <X size={16} className="text-white" />
+              </button>
+            </div>
+            <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-[0.08em] text-[#A5A9B5] mb-1.5">Category <span className="text-[#EF4444]">*</span></label>
+                <select value={form.categoryId} onChange={(e) => setForm({ ...form, categoryId: e.target.value })} className="w-full rounded-xl border border-[rgba(255,255,255,0.08)] bg-[#20242D] px-3 py-2.5 text-sm text-white outline-none focus:border-[#5B6CFF]" required>
+                  <option value="">Select category</option>
+                  {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-[0.08em] text-[#A5A9B5] mb-1.5">Title <span className="text-[#EF4444]">*</span></label>
+                <input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} className="w-full rounded-xl border border-[rgba(255,255,255,0.08)] bg-[#20242D] px-3 py-2.5 text-sm text-white outline-none placeholder:text-[#A5A9B5] focus:border-[#5B6CFF]" required />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-[0.08em] text-[#A5A9B5] mb-1.5">Description</label>
+                <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={3} className="w-full rounded-xl border border-[rgba(255,255,255,0.08)] bg-[#20242D] px-3 py-2.5 text-sm text-white outline-none placeholder:text-[#A5A9B5] focus:border-[#5B6CFF] resize-none" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold uppercase tracking-[0.08em] text-[#A5A9B5] mb-1.5">Suggested Price (₹) <span className="text-[#EF4444]">*</span></label>
+                  <input type="number" min="0" value={form.suggestedPrice} onChange={(e) => setForm({ ...form, suggestedPrice: Number(e.target.value) })} className="w-full rounded-xl border border-[rgba(255,255,255,0.08)] bg-[#20242D] px-3 py-2.5 text-sm text-white outline-none placeholder:text-[#A5A9B5] focus:border-[#5B6CFF]" required />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold uppercase tracking-[0.08em] text-[#A5A9B5] mb-1.5">Price Type <span className="text-[#EF4444]">*</span></label>
+                  <select value={form.suggestedPriceType} onChange={(e) => setForm({ ...form, suggestedPriceType: e.target.value })} className="w-full rounded-xl border border-[rgba(255,255,255,0.08)] bg-[#20242D] px-3 py-2.5 text-sm text-white outline-none focus:border-[#5B6CFF]" required>
+                    <option value="FIXED">Fixed</option>
+                    <option value="HOURLY">Hourly</option>
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-[0.08em] text-[#A5A9B5] mb-1.5">Suggested Duration (min)</label>
+                <input type="number" min="0" value={form.suggestedDuration ?? ""} onChange={(e) => setForm({ ...form, suggestedDuration: e.target.value ? Number(e.target.value) : undefined })} className="w-full rounded-xl border border-[rgba(255,255,255,0.08)] bg-[#20242D] px-3 py-2.5 text-sm text-white outline-none placeholder:text-[#A5A9B5] focus:border-[#5B6CFF]" />
+              </div>
+              {(submitError) && (
+                <div className="rounded-xl border border-[rgba(239,68,68,0.35)] bg-[rgba(239,68,68,0.08)] px-3 py-2 text-sm text-[#FCA5A5]">
+                  {submitError}
+                </div>
+              )}
+              <div className="flex gap-3 pt-2">
+                <button type="button" onClick={() => setIsFormOpen(false)} className="flex-1 h-12 rounded-2xl bg-[#20242D] text-white font-bold">Cancel</button>
+                <button type="submit" disabled={isSubmitting} className="flex-1 h-12 rounded-2xl font-bold text-white disabled:opacity-70" style={{ background:"linear-gradient(135deg,#5B6CFF 0%,#7E57FF 100%)" }}>
+                  {isSubmitting ? "Submitting..." : "Submit Request"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Admin screens ─────────────────────────────────────────────────────────────
+
+function AdminDashboardScreen({ onNavigate, toast }: { onNavigate: (s: Screen, id?: string) => void; toast: (msg: string, color?: string) => void }) {
+  const { stats, isLoading, error, refetch } = useAdminStats();
+
+  if (isLoading) {
+    return (
+      <div className="flex flex-col gap-4 pb-4 pt-2 animate-pulse">
+        <div className="h-6 bg-[#20242D] rounded w-32" />
+        <div className="grid grid-cols-2 gap-3">
+          {Array.from({ length: 4 }).map((_, i) => <div key={i} className="h-24 bg-[#171A21] rounded-2xl" />)}
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col gap-4 pb-4 pt-2">
+        <h2 className="font-bold text-white text-lg" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>Dashboard</h2>
+        <div className="rounded-2xl border border-[rgba(239,68,68,0.35)] bg-[rgba(239,68,68,0.08)] p-6 text-center">
+          <p className="text-[#FCA5A5] text-sm mb-3">{error}</p>
+          <button onClick={refetch} className="text-[#5B6CFF] text-sm font-semibold bg-[rgba(91,108,255,0.12)] px-4 py-2 rounded-xl">Retry</button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!stats) {
+    return (
+      <div className="flex flex-col gap-4 pb-4 pt-2">
+        <h2 className="font-bold text-white text-lg" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>Dashboard</h2>
+        <p className="text-[#A5A9B5] text-sm">No stats available.</p>
+      </div>
+    );
+  }
+
+  const cards = [
+    { label:"Total Users", value: stats.totalUsers.toLocaleString(), icon: Users, color: "#5B6CFF", bg: "rgba(91,108,255,0.12)" },
+    { label:"Helpers", value: stats.totalHelpers.toLocaleString(), icon: Shield, color: "#22C55E", bg: "rgba(34,197,94,0.12)" },
+    { label:"Bookings", value: stats.totalBookings.toLocaleString(), icon: CalendarCheck, color: "#F59E0B", bg: "rgba(245,158,11,0.12)" },
+    { label:"Revenue", value: `₹${stats.totalRevenue.toLocaleString()}`, icon: TrendingUp, color: "#EC4899", bg: "rgba(236,72,153,0.12)" },
+  ];
+
+  return (
+    <div className="flex flex-col gap-5 pb-4 pt-2">
+      <div className="flex items-center justify-between">
+        <h2 className="font-bold text-white text-lg" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>Dashboard</h2>
+        <button onClick={refetch} className="text-[#5B6CFF] text-xs font-semibold">Refresh</button>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        {cards.map((c) => (
+          <div key={c.label} className="bg-[#171A21] rounded-2xl p-4">
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center mb-3" style={{ background: c.bg }}>
+              <c.icon size={20} style={{ color: c.color }} />
+            </div>
+            <p className="text-white font-bold text-lg" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>{c.value}</p>
+            <p className="text-[#A5A9B5] text-xs mt-0.5">{c.label}</p>
+          </div>
+        ))}
+      </div>
+
+      {stats.pendingVerifications > 0 && (
+        <button onClick={() => onNavigate("admin-service-requests")} className="w-full bg-[#171A21] rounded-2xl p-4 flex items-center justify-between active:scale-[0.98] transition-transform">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-[rgba(245,158,11,0.12)] flex items-center justify-center">
+              <Clock size={20} className="text-[#F59E0B]" />
+            </div>
+            <div className="text-left">
+              <p className="text-white font-bold text-sm">Pending Verifications</p>
+              <p className="text-[#A5A9B5] text-xs">{stats.pendingVerifications} helper(s) awaiting review</p>
+            </div>
+          </div>
+          <ChevronRight size={16} className="text-[#A5A9B5]" />
+        </button>
+      )}
+
+      <div className="flex flex-col gap-3 mt-2">
+        {[
+          { label:"Users", screen:"admin-users" as Screen, icon: Users, color:"#5B6CFF" },
+          { label:"Bookings", screen:"admin-bookings" as Screen, icon: CalendarCheck, color:"#F59E0B" },
+          { label:"Categories", screen:"admin-categories" as Screen, icon: Folder, color:"#22C55E" },
+          { label:"Service Requests", screen:"admin-service-requests" as Screen, icon: ClipboardList, color:"#EC4899" },
+        ].map((item) => (
+          <button key={item.screen} onClick={() => onNavigate(item.screen)} className="w-full bg-[#171A21] rounded-2xl p-4 flex items-center gap-4 active:scale-[0.98] transition-transform">
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: `${item.color}20` }}>
+              <item.icon size={20} style={{ color: item.color }} />
+            </div>
+            <span className="text-white font-bold text-sm flex-1 text-left">{item.label}</span>
+            <ChevronRight size={16} className="text-[#A5A9B5]" />
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function AdminUsersScreen({ onBack, toast }: { onBack: () => void; toast: (msg: string, color?: string) => void }) {
+  const [page, setPage] = useState(1);
+  const limit = 10;
+  const { users, total, isLoading, error, refetch } = useAdminUsers(page, limit);
+  const totalPages = Math.max(1, Math.ceil(total / limit));
+
+  return (
+    <div className="flex flex-col gap-4 pb-4 pt-2">
+      <div className="flex items-center gap-4">
+        <button onClick={onBack} className="w-10 h-10 rounded-full bg-[#20242D] flex items-center justify-center active:scale-90 transition-transform">
+          <ArrowLeft size={18} className="text-white" />
+        </button>
+        <h2 className="font-bold text-white text-lg" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>Users</h2>
+      </div>
+
+      {isLoading ? (
+        <div className="flex flex-col gap-3">
+          {Array.from({ length: 5 }).map((_, i) => <div key={i} className="h-16 bg-[#171A21] rounded-2xl animate-pulse" />)}
+        </div>
+      ) : error ? (
+        <div className="rounded-2xl border border-[rgba(239,68,68,0.35)] bg-[rgba(239,68,68,0.08)] p-6 text-center">
+          <p className="text-[#FCA5A5] text-sm mb-3">{error}</p>
+          <button onClick={refetch} className="text-[#5B6CFF] text-sm font-semibold bg-[rgba(91,108,255,0.12)] px-4 py-2 rounded-xl">Retry</button>
+        </div>
+      ) : users.length === 0 ? (
+        <div className="text-center py-12">
+          <Users size={40} className="text-[#A5A9B5] mx-auto mb-3 opacity-30" />
+          <p className="text-[#A5A9B5]">No users found</p>
+        </div>
+      ) : (
+        <>
+          <div className="flex flex-col gap-3">
+            {users.map((u) => (
+              <div key={u.id} className="bg-[#171A21] rounded-2xl p-4 flex items-center gap-4">
+                <div className="w-10 h-10 rounded-full bg-[#20242D] flex items-center justify-center text-white font-bold text-sm shrink-0">
+                  {u.firstName?.[0]?.toUpperCase() ?? "?"}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-white font-bold text-sm truncate">{u.firstName} {u.lastName}</p>
+                  <p className="text-[#A5A9B5] text-xs truncate">{u.email}</p>
+                </div>
+                <div className="flex flex-col items-end gap-1 shrink-0">
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${u.role === 'ADMIN' ? 'bg-[rgba(245,158,11,0.15)] text-[#FBBF24]' : u.role === 'HELPER' ? 'bg-[rgba(34,197,94,0.15)] text-[#22C55E]' : 'bg-[rgba(91,108,255,0.15)] text-[#5B6CFF]'}`}>{u.role}</span>
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${u.isActive ? 'bg-[rgba(34,197,94,0.15)] text-[#22C55E]' : 'bg-[rgba(239,68,68,0.15)] text-[#EF4444]'}`}>{u.isActive ? 'Active' : 'Inactive'}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between mt-2">
+              <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1} className="px-4 py-2 rounded-xl bg-[#20242D] text-white text-xs font-semibold disabled:opacity-50">Previous</button>
+              <span className="text-[#A5A9B5] text-xs">Page {page} of {totalPages}</span>
+              <button onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page === totalPages} className="px-4 py-2 rounded-xl bg-[#5B6CFF] text-white text-xs font-semibold disabled:opacity-50">Next</button>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+function AdminBookingsScreen({ onBack, toast }: { onBack: () => void; toast: (msg: string, color?: string) => void }) {
+  const [page, setPage] = useState(1);
+  const limit = 10;
+  const { bookings, total, isLoading, error, refetch } = useAdminBookings(page, limit);
+  const totalPages = Math.max(1, Math.ceil(total / limit));
+
+  const formatDate = (iso: string) => {
+    const d = new Date(iso);
+    return isNaN(d.getTime()) ? iso : d.toLocaleString("en-IN", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
+  };
+
+  return (
+    <div className="flex flex-col gap-4 pb-4 pt-2">
+      <div className="flex items-center gap-4">
+        <button onClick={onBack} className="w-10 h-10 rounded-full bg-[#20242D] flex items-center justify-center active:scale-90 transition-transform">
+          <ArrowLeft size={18} className="text-white" />
+        </button>
+        <h2 className="font-bold text-white text-lg" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>Bookings</h2>
+      </div>
+
+      {isLoading ? (
+        <div className="flex flex-col gap-3">
+          {Array.from({ length: 5 }).map((_, i) => <div key={i} className="h-24 bg-[#171A21] rounded-2xl animate-pulse" />)}
+        </div>
+      ) : error ? (
+        <div className="rounded-2xl border border-[rgba(239,68,68,0.35)] bg-[rgba(239,68,68,0.08)] p-6 text-center">
+          <p className="text-[#FCA5A5] text-sm mb-3">{error}</p>
+          <button onClick={refetch} className="text-[#5B6CFF] text-sm font-semibold bg-[rgba(91,108,255,0.12)] px-4 py-2 rounded-xl">Retry</button>
+        </div>
+      ) : bookings.length === 0 ? (
+        <div className="text-center py-12">
+          <CalendarCheck size={40} className="text-[#A5A9B5] mx-auto mb-3 opacity-30" />
+          <p className="text-[#A5A9B5]">No bookings found</p>
+        </div>
+      ) : (
+        <>
+          <div className="flex flex-col gap-3">
+            {bookings.map((b) => {
+              const customerName = `${b.customer.firstName} ${b.customer.lastName}`.trim();
+              const helperName = `${b.helper.user.firstName} ${b.helper.user.lastName}`.trim();
+              return (
+                <div key={b.id} className="bg-[#171A21] rounded-2xl p-4">
+                  <div className="flex items-start justify-between gap-2 mb-2">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-white font-bold text-sm truncate">{b.service.title}</p>
+                      <p className="text-[#A5A9B5] text-xs mt-0.5">Customer: {customerName} · Helper: {helperName}</p>
+                    </div>
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${b.status === 'PENDING' ? 'bg-[rgba(245,158,11,0.15)] text-[#FBBF24]' : b.status === 'COMPLETED' ? 'bg-[rgba(34,197,94,0.15)] text-[#22C55E]' : 'bg-[rgba(239,68,68,0.15)] text-[#EF4444]'}`}>{b.status}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs text-[#A5A9B5]">
+                    <span>{formatDate(b.bookingDate)}</span>
+                    <span className="text-white font-bold">₹{b.totalAmount.toLocaleString()}</span>
+                  </div>
+                  {b.payment && <p className="text-[10px] text-[#A5A9B5] mt-1">Payment: {b.payment.status}</p>}
+                </div>
+              );
+            })}
+          </div>
+
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between mt-2">
+              <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1} className="px-4 py-2 rounded-xl bg-[#20242D] text-white text-xs font-semibold disabled:opacity-50">Previous</button>
+              <span className="text-[#A5A9B5] text-xs">Page {page} of {totalPages}</span>
+              <button onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page === totalPages} className="px-4 py-2 rounded-xl bg-[#5B6CFF] text-white text-xs font-semibold disabled:opacity-50">Next</button>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+function AdminCategoriesScreen({ onBack, toast }: { onBack: () => void; toast: (msg: string, color?: string) => void }) {
+  const { categories, isLoading, error, refetch, create, update, remove } = useAdminCategories();
+  const [isFormOpen, setIsFormOpen] = useState(false);
+  const [editingCategory, setEditingCategory] = useState<AdminCategoryData | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [form, setForm] = useState<CreateCategoryPayload>({ name: "", description: "", icon: "" });
+
+  const openCreate = () => {
+    setEditingCategory(null);
+    setForm({ name: "", description: "", icon: "" });
+    setSubmitError(null);
+    setIsFormOpen(true);
+  };
+
+  const openEdit = (cat: AdminCategoryData) => {
+    setEditingCategory(cat);
+    setForm({ name: cat.name, description: cat.description ?? "", icon: cat.icon ?? "" });
+    setSubmitError(null);
+    setIsFormOpen(true);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!form.name.trim()) {
+      setSubmitError("Category name is required.");
+      return;
+    }
+    setIsSubmitting(true);
+    setSubmitError(null);
+    try {
+      if (editingCategory) {
+        await update(editingCategory.id, form);
+        toast("Category updated.", "#22C55E");
+      } else {
+        await create(form);
+        toast("Category created.", "#22C55E");
+      }
+      setIsFormOpen(false);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to save category.";
+      setSubmitError(message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm("Delete this category? This action cannot be undone.")) return;
+    try {
+      await remove(id);
+      toast("Category deleted.", "#EF4444");
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "Failed to delete category.", "#EF4444");
+    }
+  };
+
+  return (
+    <div className="flex flex-col gap-4 pb-4 pt-2">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <button onClick={onBack} className="w-10 h-10 rounded-full bg-[#20242D] flex items-center justify-center active:scale-90 transition-transform">
+            <ArrowLeft size={18} className="text-white" />
+          </button>
+          <h2 className="font-bold text-white text-lg" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>Categories</h2>
+        </div>
+        <button onClick={openCreate} className="flex items-center gap-2 rounded-xl bg-[#5B6CFF] px-3 py-2 text-xs font-bold text-white active:scale-95 transition-transform">
+          <Plus size={14} /> Add
+        </button>
+      </div>
+
+      {isLoading ? (
+        <div className="flex flex-col gap-3">
+          {Array.from({ length: 5 }).map((_, i) => <div key={i} className="h-20 bg-[#171A21] rounded-2xl animate-pulse" />)}
+        </div>
+      ) : error ? (
+        <div className="rounded-2xl border border-[rgba(239,68,68,0.35)] bg-[rgba(239,68,68,0.08)] p-6 text-center">
+          <p className="text-[#FCA5A5] text-sm mb-3">{error}</p>
+          <button onClick={refetch} className="text-[#5B6CFF] text-sm font-semibold bg-[rgba(91,108,255,0.12)] px-4 py-2 rounded-xl">Retry</button>
+        </div>
+      ) : categories.length === 0 ? (
+        <div className="text-center py-12">
+          <Folder size={40} className="text-[#A5A9B5] mx-auto mb-3 opacity-30" />
+          <p className="text-[#A5A9B5]">No categories yet</p>
+          <button onClick={openCreate} className="mt-3 text-[#5B6CFF] text-sm font-semibold">Create the first category</button>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-3">
+          {categories.map((cat) => (
+            <div key={cat.id} className="bg-[#171A21] rounded-2xl p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-lg">{cat.icon || "📂"}</span>
+                    <p className="text-white font-bold text-sm">{cat.name}</p>
+                  </div>
+                  {cat.description && <p className="text-[#A5A9B5] text-xs leading-relaxed">{cat.description}</p>}
+                </div>
+                <div className="flex gap-2 shrink-0">
+                  <button onClick={() => openEdit(cat)} className="w-8 h-8 rounded-lg bg-[#20242D] flex items-center justify-center active:scale-90 transition-transform">
+                    <Edit2 size={14} className="text-white" />
+                  </button>
+                  <button onClick={() => handleDelete(cat.id)} className="w-8 h-8 rounded-lg bg-[rgba(239,68,68,0.12)] flex items-center justify-center active:scale-90 transition-transform">
+                    <Trash2 size={14} className="text-[#EF4444]" />
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {isFormOpen && (
+        <div className="absolute inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm px-5 pb-8">
+          <div className="bg-[#171A21] rounded-3xl p-5 w-full max-h-[88vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-bold text-white" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>{editingCategory ? "Edit Category" : "New Category"}</h2>
+              <button onClick={() => setIsFormOpen(false)} className="w-9 h-9 rounded-full bg-[#20242D] flex items-center justify-center active:scale-90 transition-transform">
+                <X size={16} className="text-white" />
+              </button>
+            </div>
+            <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-[0.08em] text-[#A5A9B5] mb-1.5">Name <span className="text-[#EF4444]">*</span></label>
+                <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="w-full rounded-xl border border-[rgba(255,255,255,0.08)] bg-[#20242D] px-3 py-2.5 text-sm text-white outline-none placeholder:text-[#A5A9B5] focus:border-[#5B6CFF]" required />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-[0.08em] text-[#A5A9B5] mb-1.5">Description</label>
+                <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={3} className="w-full rounded-xl border border-[rgba(255,255,255,0.08)] bg-[#20242D] px-3 py-2.5 text-sm text-white outline-none placeholder:text-[#A5A9B5] focus:border-[#5B6CFF] resize-none" />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-[0.08em] text-[#A5A9B5] mb-1.5">Icon</label>
+                <input value={form.icon} onChange={(e) => setForm({ ...form, icon: e.target.value })} placeholder="e.g. 🧹" className="w-full rounded-xl border border-[rgba(255,255,255,0.08)] bg-[#20242D] px-3 py-2.5 text-sm text-white outline-none placeholder:text-[#A5A9B5] focus:border-[#5B6CFF]" />
+              </div>
+              {(submitError) && (
+                <div className="rounded-xl border border-[rgba(239,68,68,0.35)] bg-[rgba(239,68,68,0.08)] px-3 py-2 text-sm text-[#FCA5A5]">
+                  {submitError}
+                </div>
+              )}
+              <div className="flex gap-3 pt-2">
+                <button type="button" onClick={() => setIsFormOpen(false)} className="flex-1 h-12 rounded-2xl bg-[#20242D] text-white font-bold">Cancel</button>
+                <button type="submit" disabled={isSubmitting} className="flex-1 h-12 rounded-2xl font-bold text-white disabled:opacity-70" style={{ background:"linear-gradient(135deg,#5B6CFF 0%,#7E57FF 100%)" }}>
+                  {isSubmitting ? "Saving..." : editingCategory ? "Save Changes" : "Create"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AdminServiceRequestsScreen({ onBack, toast }: { onBack: () => void; toast: (msg: string, color?: string) => void }) {
+  const [page, setPage] = useState(1);
+  const [status, setStatus] = useState<string | undefined>(undefined);
+  const limit = 10;
+  const { requests, total, isLoading, error, refetch, review } = useAdminServiceRequests(page, limit, status);
+  const totalPages = Math.max(1, Math.ceil(total / limit));
+
+  const handleReview = async (id: string, approved: boolean) => {
+    try {
+      await review(id, { approved });
+      toast(approved ? "Service request approved." : "Service request rejected.", approved ? "#22C55E" : "#EF4444");
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "Failed to review request.", "#EF4444");
+    }
+  };
+
+  const statusTabs: { label: string; value: string | undefined }[] = [
+    { label: "All", value: undefined },
+    { label: "Pending", value: "PENDING" },
+    { label: "Approved", value: "APPROVED" },
+    { label: "Rejected", value: "REJECTED" },
+  ];
+
+  return (
+    <div className="flex flex-col gap-4 pb-4 pt-2">
+      <div className="flex items-center gap-4">
+        <button onClick={onBack} className="w-10 h-10 rounded-full bg-[#20242D] flex items-center justify-center active:scale-90 transition-transform">
+          <ArrowLeft size={18} className="text-white" />
+        </button>
+        <h2 className="font-bold text-white text-lg" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>Service Requests</h2>
+      </div>
+
+      <div className="flex gap-2 overflow-x-auto pb-1" style={{ scrollbarWidth:"none" }}>
+        {statusTabs.map((tab) => (
+          <button key={tab.label} onClick={() => { setStatus(tab.value); setPage(1); }} className={`shrink-0 px-4 py-2 rounded-full text-sm font-semibold transition-colors ${status === tab.value ? "bg-[#5B6CFF] text-white" : "bg-[#20242D] text-[#A5A9B5] hover:text-white"}`}>{tab.label}</button>
+        ))}
+      </div>
+
+      {isLoading ? (
+        <div className="flex flex-col gap-3">
+          {Array.from({ length: 5 }).map((_, i) => <div key={i} className="h-24 bg-[#171A21] rounded-2xl animate-pulse" />)}
+        </div>
+      ) : error ? (
+        <div className="rounded-2xl border border-[rgba(239,68,68,0.35)] bg-[rgba(239,68,68,0.08)] p-6 text-center">
+          <p className="text-[#FCA5A5] text-sm mb-3">{error}</p>
+          <button onClick={refetch} className="text-[#5B6CFF] text-sm font-semibold bg-[rgba(91,108,255,0.12)] px-4 py-2 rounded-xl">Retry</button>
+        </div>
+      ) : requests.length === 0 ? (
+        <div className="text-center py-12">
+          <ClipboardList size={40} className="text-[#A5A9B5] mx-auto mb-3 opacity-30" />
+          <p className="text-[#A5A9B5]">No service requests found</p>
+        </div>
+      ) : (
+        <>
+          <div className="flex flex-col gap-3">
+            {requests.map((req) => (
+              <div key={req.id} className="bg-[#171A21] rounded-2xl p-4">
+                <div className="flex items-start justify-between gap-2 mb-2">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-white font-bold text-sm truncate">{req.title || req.category.name}</p>
+                    <p className="text-[#A5A9B5] text-xs mt-0.5">{req.helper.user.firstName} {req.helper.user.lastName} · {req.category.name}</p>
+                  </div>
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${req.status === 'PENDING' ? 'bg-[rgba(245,158,11,0.15)] text-[#FBBF24]' : req.status === 'APPROVED' ? 'bg-[rgba(34,197,94,0.15)] text-[#22C55E]' : 'bg-[rgba(239,68,68,0.15)] text-[#EF4444]'}`}>{req.status}</span>
+                </div>
+                <p className="text-white text-sm font-semibold">₹{req.suggestedPrice.toLocaleString()} <span className="text-[#A5A9B5] text-xs font-normal">/ {req.suggestedPriceType}</span></p>
+                {req.adminNotes && <p className="text-[#A5A9B5] text-xs mt-1">Note: {req.adminNotes}</p>}
+                {req.status === 'PENDING' && (
+                  <div className="flex gap-2 mt-3">
+                    <button onClick={() => handleReview(req.id, true)} className="flex-1 h-10 rounded-xl bg-[#22C55E] text-white text-xs font-bold active:scale-95 transition-transform flex items-center justify-center gap-1">
+                      <Check size={14} /> Approve
+                    </button>
+                    <button onClick={() => handleReview(req.id, false)} className="flex-1 h-10 rounded-xl bg-[rgba(239,68,68,0.12)] text-[#EF4444] text-xs font-bold active:scale-95 transition-transform flex items-center justify-center gap-1">
+                      <X size={14} /> Reject
+                    </button>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between mt-2">
+              <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1} className="px-4 py-2 rounded-xl bg-[#20242D] text-white text-xs font-semibold disabled:opacity-50">Previous</button>
+              <span className="text-[#A5A9B5] text-xs">Page {page} of {totalPages}</span>
+              <button onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page === totalPages} className="px-4 py-2 rounded-xl bg-[#5B6CFF] text-white text-xs font-semibold disabled:opacity-50">Next</button>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
 
 // ─── App root ─────────────────────────────────────────────────────────────────
 
@@ -2175,6 +3349,9 @@ export default function App() {
   const toastId = useState(0);
 
   const { isAuthenticated, isLoading, login, logout, user } = useAuth();
+
+  const isHelper = user?.role === 'helper';
+  const isAdmin = user?.role === 'admin';
 
   const pushToast = (msg: string, color?: string) => {
     const id = ++toastId[0];
@@ -2191,9 +3368,42 @@ export default function App() {
 
   const goBack = () => setScreen(prevScreen);
 
-  const tabScreens: Screen[] = ["home","explore","bookings","profile"];
+  const tabScreens: Screen[] = ["home","explore","bookings","profile","helper-dashboard","helper-service-requests","helper-bookings","admin-dashboard"];
   const activeTab = tabScreens.includes(screen) ? screen : prevScreen;
-  const showBottomNav = !["detail","booking","addresses","booking-detail","register","verify-email"].includes(screen);
+  const showBottomNav = !["detail","booking","addresses","booking-detail","register","verify-email","helper-booking-detail","admin-users","admin-bookings","admin-categories","admin-service-requests","helper-service-requests"].includes(screen);
+
+  const navItems = isHelper ? [
+    { id:"helper-dashboard" as Screen, icon:Home,          label:"Dashboard" },
+    { id:"helper-service-requests" as Screen, icon:ClipboardList, label:"Requests" },
+    { id:"helper-bookings"  as Screen, icon:CalendarCheck, label:"Jobs"      },
+    { id:"profile"          as Screen, icon:User,          label:"Profile"   },
+  ] : isAdmin ? [
+    { id:"admin-dashboard" as Screen, icon:Shield, label:"Admin" },
+    { id:"profile"         as Screen, icon:User,   label:"Profile" },
+  ] : [
+    { id:"home"     as Screen, icon:Home,          label:"Home"     },
+    { id:"explore"  as Screen, icon:Grid,          label:"Explore"  },
+    { id:"bookings" as Screen, icon:CalendarCheck, label:"Bookings" },
+    { id:"profile"  as Screen, icon:User,          label:"Profile"  },
+  ];
+
+  useEffect(() => {
+    if (isAuthenticated && isHelper && screen === 'home') {
+      setScreen('helper-dashboard');
+      setPrevScreen('helper-dashboard');
+    } else if (isAuthenticated && isAdmin && screen === 'home') {
+      setScreen('admin-dashboard');
+      setPrevScreen('admin-dashboard');
+    }
+  }, [isAuthenticated, isHelper, isAdmin, screen]);
+
+  useEffect(() => {
+    const adminScreens: Screen[] = ["admin-dashboard", "admin-users", "admin-bookings", "admin-categories", "admin-service-requests"];
+    if (adminScreens.includes(screen) && !isAdmin) {
+      setScreen("home");
+      setPrevScreen("home");
+    }
+  }, [screen, isAdmin]);
 
   const openBookingDetail = (id: string) => {
     setBookingDetailId(id);
@@ -2285,8 +3495,17 @@ export default function App() {
                   toast={pushToast}
                 />
               )}
-              {screen === "profile"  && <ProfileScreen  onNavigate={navigate} toast={pushToast} />}
+              {screen === "profile"  && (isHelper ? <HelperProfileScreen onNavigate={navigate} toast={pushToast} /> : <ProfileScreen onNavigate={navigate} toast={pushToast} />)}
               {screen === "addresses" && <AddressScreen onBack={goBack} toast={pushToast} />}
+              {screen === "helper-dashboard" && <HelperDashboardScreen onNavigate={navigate} toast={pushToast} />}
+              {screen === "helper-service-requests" && <HelperServiceRequestsScreen onBack={goBack} toast={pushToast} />}
+              {screen === "helper-bookings" && <HelperBookingsScreen onNavigate={navigate} onViewDetails={(id) => { setBookingDetailId(id); navigate("helper-booking-detail"); }} toast={pushToast} />}
+              {screen === "helper-booking-detail" && bookingDetailId && <HelperBookingDetailScreen bookingId={bookingDetailId} onBack={goBack} toast={pushToast} />}
+              {isAdmin && screen === "admin-dashboard" && <AdminDashboardScreen onNavigate={navigate} toast={pushToast} />}
+              {isAdmin && screen === "admin-users" && <AdminUsersScreen onBack={goBack} toast={pushToast} />}
+              {isAdmin && screen === "admin-bookings" && <AdminBookingsScreen onBack={goBack} toast={pushToast} />}
+              {isAdmin && screen === "admin-categories" && <AdminCategoriesScreen onBack={goBack} toast={pushToast} />}
+              {isAdmin && screen === "admin-service-requests" && <AdminServiceRequestsScreen onBack={goBack} toast={pushToast} />}
             </div>
 
             {/* Bottom nav */}
