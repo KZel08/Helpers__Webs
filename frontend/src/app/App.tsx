@@ -3250,12 +3250,23 @@ function AdminServiceRequestsScreen({ onBack, toast }: { onBack: () => void; toa
   const { requests, total, isLoading, error, refetch, review } = useAdminServiceRequests(page, limit, status);
   const totalPages = Math.max(1, Math.ceil(total / limit));
 
-  const handleReview = async (id: string, approved: boolean) => {
+  const [reviewingId, setReviewingId] = useState<string | null>(null);
+  const [confirmRequest, setConfirmRequest] = useState<{ id: string; approved: boolean } | null>(null);
+
+  const handleConfirmReview = async () => {
+    if (!confirmRequest) return;
+    const { id, approved } = confirmRequest;
+    setConfirmRequest(null);
+    setReviewingId(id);
     try {
       await review(id, { approved });
       toast(approved ? "Service request approved." : "Service request rejected.", approved ? "#22C55E" : "#EF4444");
+      refetch();
     } catch (err) {
       toast(err instanceof Error ? err.message : "Failed to review request.", "#EF4444");
+      refetch();
+    } finally {
+      setReviewingId(null);
     }
   };
 
@@ -3303,7 +3314,8 @@ function AdminServiceRequestsScreen({ onBack, toast }: { onBack: () => void; toa
                 <div className="flex items-start justify-between gap-2 mb-2">
                   <div className="flex-1 min-w-0">
                     <p className="text-white font-bold text-sm truncate">{req.title || req.category.name}</p>
-                    <p className="text-[#A5A9B5] text-xs mt-0.5">{req.helper.user.firstName} {req.helper.user.lastName} · {req.category.name}</p>
+                    <p className="text-[#A5A9B5] text-xs mt-0.5">{req.helper.user.firstName} {req.helper.user.lastName} · {req.helper.user.email}</p>
+                    <p className="text-[#A5A9B5] text-[10px] mt-0.5">Category: {req.category.name} · Submitted {new Date(req.createdAt).toLocaleString("en-IN", { day: "numeric", month: "short", year: "numeric" })}</p>
                   </div>
                   <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${req.status === 'PENDING' ? 'bg-[rgba(245,158,11,0.15)] text-[#FBBF24]' : req.status === 'APPROVED' ? 'bg-[rgba(34,197,94,0.15)] text-[#22C55E]' : 'bg-[rgba(239,68,68,0.15)] text-[#EF4444]'}`}>{req.status}</span>
                 </div>
@@ -3311,12 +3323,20 @@ function AdminServiceRequestsScreen({ onBack, toast }: { onBack: () => void; toa
                 {req.adminNotes && <p className="text-[#A5A9B5] text-xs mt-1">Note: {req.adminNotes}</p>}
                 {req.status === 'PENDING' && (
                   <div className="flex gap-2 mt-3">
-                    <button onClick={() => handleReview(req.id, true)} className="flex-1 h-10 rounded-xl bg-[#22C55E] text-white text-xs font-bold active:scale-95 transition-transform flex items-center justify-center gap-1">
-                      <Check size={14} /> Approve
-                    </button>
-                    <button onClick={() => handleReview(req.id, false)} className="flex-1 h-10 rounded-xl bg-[rgba(239,68,68,0.12)] text-[#EF4444] text-xs font-bold active:scale-95 transition-transform flex items-center justify-center gap-1">
-                      <X size={14} /> Reject
-                    </button>
+                    {reviewingId === req.id ? (
+                      <div className="flex-1 h-10 rounded-xl bg-[#20242D] text-[#A5A9B5] text-xs font-bold flex items-center justify-center gap-1">
+                        <Timer size={14} className="animate-spin" /> Processing…
+                      </div>
+                    ) : (
+                      <>
+                        <button onClick={() => setConfirmRequest({ id: req.id, approved: true })} className="flex-1 h-10 rounded-xl bg-[#22C55E] text-white text-xs font-bold active:scale-95 transition-transform flex items-center justify-center gap-1">
+                          <Check size={14} /> Approve
+                        </button>
+                        <button onClick={() => setConfirmRequest({ id: req.id, approved: false })} className="flex-1 h-10 rounded-xl bg-[rgba(239,68,68,0.12)] text-[#EF4444] text-xs font-bold active:scale-95 transition-transform flex items-center justify-center gap-1">
+                          <X size={14} /> Reject
+                        </button>
+                      </>
+                    )}
                   </div>
                 )}
               </div>
@@ -3331,6 +3351,30 @@ function AdminServiceRequestsScreen({ onBack, toast }: { onBack: () => void; toa
             </div>
           )}
         </>
+      )}
+
+      {confirmRequest && (
+        <div className="absolute inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm px-5 pb-8">
+          <div className="bg-[#171A21] rounded-3xl p-6 w-full flex flex-col items-center gap-4">
+            <div className="w-14 h-14 rounded-full flex items-center justify-center" style={{ background: confirmRequest.approved ? "rgba(34,197,94,0.15)" : "rgba(239,68,68,0.15)" }}>
+              <CheckCircle2 size={28} className={confirmRequest.approved ? "text-[#22C55E]" : "text-[#EF4444]"} />
+            </div>
+            <div className="text-center">
+              <h2 className="text-xl font-bold text-white" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>{confirmRequest.approved ? "Approve" : "Reject"} Request</h2>
+              <p className="text-[#A5A9B5] text-sm mt-1">
+                {confirmRequest.approved
+                  ? "This will approve the service request for publication."
+                  : "This will reject the service request. The helper will be notified."}
+              </p>
+            </div>
+            <div className="flex gap-3 w-full pt-2">
+              <button onClick={() => setConfirmRequest(null)} className="flex-1 h-12 rounded-2xl bg-[#20242D] text-white font-bold">Cancel</button>
+              <button onClick={handleConfirmReview} className="flex-1 h-12 rounded-2xl font-bold text-white active:scale-95 transition-transform" style={{ background: confirmRequest.approved ? "linear-gradient(135deg,#22C55E 0%,#16A34A 100%)" : "linear-gradient(135deg,#EF4444 0%,#B91C1C 100%)" }}>
+                {confirmRequest.approved ? "Approve" : "Reject"}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
