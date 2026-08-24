@@ -587,7 +587,7 @@ function HomeScreen({ onNavigate, toast, user }: { onNavigate: (s: Screen, id?: 
           <button onClick={() => onNavigate("explore")} className="text-[#5B6CFF] text-sm font-semibold">See all</button>
         </div>
         <div className="flex flex-col gap-3">
-          {ALL_PROVIDERS.slice(0,3).map((p) => <ProviderCard key={p.id} p={p} onClick={() => onNavigate("detail", p.id)} />)}
+          {ALL_PROVIDERS.slice(0,3).map((p) => <ProviderCard key={p.id} p={p} onClick={() => onNavigate("explore")} />)}
         </div>
       </div>
 
