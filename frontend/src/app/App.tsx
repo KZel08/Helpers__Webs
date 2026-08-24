@@ -2346,11 +2346,11 @@ function HelperBookingDetailScreen({ bookingId, onBack, toast }: { bookingId: st
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bookingId]);
 
-  const handleUpdateStatus = async (status: HelperBookingStatus) => {
+  const handleUpdateStatus = async (status: "ACCEPTED" | "ONGOING" | "COMPLETED") => {
     if (!booking || isUpdating) return;
     setIsUpdating(true);
     try {
-      const updated = await bookingsApi.updateStatus(booking.id, status);
+      const updated = await bookingsApi.update(booking.id, { status });
       setBooking(updated);
       toast(`Status updated to ${status}`, "#22C55E");
     } catch (err) {
