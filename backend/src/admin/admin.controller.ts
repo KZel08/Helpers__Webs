@@ -108,6 +108,12 @@ export class AdminController {
     return this.adminService.deleteCategory(id);
   }
 
+  @ApiOperation({ summary: 'List verified helpers (admin only)' })
+  @Get('helpers')
+  async getHelpers() {
+    return this.adminService.getHelpers();
+  }
+
   @ApiOperation({ summary: 'Create a service for a helper (admin only)' })
   @Post('services')
   async createService(@Body() dto: CreateAdminServiceDto) {

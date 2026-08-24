@@ -7,7 +7,7 @@ import { useAdminStats, useAdminUsers, useAdminBookings, useAdminCategories, use
 import { useHelperProfile } from "../hooks/useHelperProfile";
 import { useHelperServiceRequests } from "../hooks/useHelperServiceRequests";
 import { useAuth } from "../contexts/AuthContext";
-import type { ServiceData, AddressData, CreateAddressRequest, UpdateAddressRequest, BookingData, AdminStatsData, AdminUserData, AdminBookingData, AdminCategoryData, AdminServiceRequestData, CreateCategoryPayload, UpdateCategoryPayload, ReviewServiceRequestPayload, ServiceRequestData, CreateServiceRequestPayload, CreateAdminServicePayload } from "../lib/api";
+import type { ServiceData, AddressData, CreateAddressRequest, UpdateAddressRequest, BookingData, HelperProfileData, AdminStatsData, AdminUserData, AdminBookingData, AdminCategoryData, AdminServiceRequestData, CreateCategoryPayload, UpdateCategoryPayload, ReviewServiceRequestPayload, ServiceRequestData, CreateServiceRequestPayload, CreateAdminServicePayload, AdminHelperData } from "../lib/api";
 import { bookingsApi, paymentsApi, helpersApi, adminApi, servicesApi } from "../lib/api";
 import { loadRazorpayScript } from "../lib/razorpay";
 import {
@@ -3651,6 +3651,28 @@ function AdminServicesScreen({ onBack, toast }: { onBack: () => void; toast: (ms
 
   useEffect(() => { loadServices(); }, [page, debouncedSearch, categoryFilter]);
 
+  // Verified helpers for the service-create picker.
+  // GET /admin/helpers (admin only) returns verified HelperProfile records
+  // shaped as { id, user: { firstName, lastName, email } };
+  // each record's `id` is the HelperProfile.id required by POST /admin/services.
+  const [helpers, setHelpers] = useState<AdminHelperData[]>([]);
+  const [helpersLoading, setHelpersLoading] = useState(true);
+  const [helpersError, setHelpersError] = useState<string | null>(null);
+
+  const loadHelpers = async () => {
+    setHelpersLoading(true);
+    setHelpersError(null);
+    try {
+      setHelpers(await adminApi.getHelpers());
+    } catch (err) {
+      setHelpersError(err instanceof Error ? err.message : "Failed to load helpers");
+    } finally {
+      setHelpersLoading(false);
+    }
+  };
+
+  useEffect(() => { loadHelpers(); }, []);
+
   const totalPages = Math.max(1, Math.ceil(total / limit));
 
   // categories for the filter dropdown
@@ -3683,7 +3705,7 @@ function AdminServicesScreen({ onBack, toast }: { onBack: () => void; toast: (ms
     e.preventDefault();
     if (!createForm.title.trim()) { setCreateError("Title is required."); return; }
     if (!createForm.categoryId)  { setCreateError("Category is required."); return; }
-    if (!createForm.helperId.trim()) { setCreateError("Helper profile ID is required."); return; }
+    if (!createForm.helperId.trim()) { setCreateError("A verified helper must be selected."); return; }
     if (createForm.price < 0) { setCreateError("Price must be ≥ 0."); return; }
     setIsCreating(true);
     setCreateError(null);
@@ -3984,18 +4006,32 @@ function AdminServicesScreen({ onBack, toast }: { onBack: () => void; toast: (ms
                   ))}
                 </select>
               </div>
-              {/* Helper ID */}
+              {/* Helper (picker: GET /helpers returns verified HelperProfile.id) */}
               <div>
-                <label className="block text-xs font-semibold uppercase tracking-[0.08em] text-[#A5A9B5] mb-1.5">Helper Profile ID <span className="text-[#EF4444]">*</span></label>
-                <input
-                  id="admin-service-form-helper-id"
+                <label className="block text-xs font-semibold uppercase tracking-[0.08em] text-[#A5A9B5] mb-1.5">Helper <span className="text-[#EF4444]">*</span></label>
+                <select
+                  id="admin-service-form-helper"
                   value={createForm.helperId}
                   onChange={(e) => setCreateForm({ ...createForm, helperId: e.target.value })}
-                  placeholder="Helper profile UUID"
-                  className="w-full rounded-xl border border-[rgba(255,255,255,0.08)] bg-[#20242D] px-3 py-2.5 text-sm text-white outline-none placeholder:text-[#A5A9B5] focus:border-[#A855F7] font-mono text-xs"
+                  className="w-full rounded-xl border border-[rgba(255,255,255,0.08)] bg-[#20242D] px-3 py-2.5 text-sm text-white outline-none focus:border-[#A855F7]"
                   required
-                />
-                <p className="text-[#A5A9B5] text-[10px] mt-1">Must be a verified helper's profile ID</p>
+                  disabled={helpersLoading || !!helpersError}
+                >
+                  <option value="">— Select a verified helper —</option>
+                  {helpers.map((h) => {
+                    const name = `${h.user.firstName ?? ""} ${h.user.lastName ?? ""}`.trim() || "Unnamed helper";
+                    return (
+                      <option key={h.id} value={h.id}>
+                        {name} ({h.user.email})
+                      </option>
+                    );
+                  })}
+                </select>
+                {helpersLoading && <p className="text-[#A5A9B5] text-[10px] mt-1">Loading helpers…</p>}
+                {helpersError && <p className="text-[#EF4444] text-[10px] mt-1">{helpersError}</p>}
+                {!helpersLoading && !helpersError && helpers.length === 0 && (
+                  <p className="text-[#A5A9B5] text-[10px] mt-1">No verified helpers available yet.</p>
+                )}
               </div>
               {/* Price + Price Type */}
               <div className="flex gap-3">

@@ -7,7 +7,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { ServiceRequestsService } from '../service-requests/service-requests.service';
 import { CategoriesService } from '../categories/categories.service';
 import { ServicesRepository } from '../services/services.repository';
-import { ServiceRequestStatus } from '@prisma/client';
+import { ServiceRequestStatus, VerificationStatus } from '@prisma/client';
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { UpdateCategoryDto } from './dto/update-category.dto';
 import { CreateAdminServiceDto } from './dto/create-admin-service.dto';
@@ -163,6 +163,23 @@ export class AdminService {
       price: dto.price,
       priceType: dto.priceType,
       duration: dto.duration,
+    });
+  }
+
+  async getHelpers() {
+    return this.prisma.helperProfile.findMany({
+      where: { verificationStatus: VerificationStatus.VERIFIED },
+      select: {
+        id: true,
+        user: {
+          select: {
+            firstName: true,
+            lastName: true,
+            email: true,
+          },
+        },
+      },
+      orderBy: { rating: 'desc' },
     });
   }
 }

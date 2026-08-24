@@ -556,6 +556,15 @@ export interface UpdateCategoryPayload {
   icon?: string;
 }
 
+export interface AdminHelperData {
+  id: string;
+  user: {
+    firstName: string;
+    lastName: string;
+    email: string;
+  };
+}
+
 export interface CreateAdminServicePayload {
   title: string;
   description?: string;
@@ -618,6 +627,7 @@ export const adminApi = {
     apiFetch<{ message: string }>(`/admin/categories/${id}`, { method: 'DELETE' }),
   createService: (body: CreateAdminServicePayload) =>
     apiFetch<ServiceData>('/admin/services', { method: 'POST', body: JSON.stringify(body) }),
+  getHelpers: () => apiFetch<AdminHelperData[]>('/admin/helpers'),
   verifyHelper: (id: string, body: VerifyHelperPayload) =>
     apiFetch<{ id: string; verificationStatus: string }>(`/admin/helpers/${id}/verify`, { method: 'PUT', body: JSON.stringify(body) }),
 };
