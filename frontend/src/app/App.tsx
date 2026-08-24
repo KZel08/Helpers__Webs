@@ -4,6 +4,7 @@ import { useServices, useService } from "../hooks/useServices";
 import { useAddresses } from "../hooks/useAddresses";
 import { useBookings } from "../hooks/useBookings";
 import { useAdmin } from "../hooks/useAdmin";
+import { useHelperProfile } from "../hooks/useHelperProfile";
 import { useHelperServiceRequests } from "../hooks/useHelperServiceRequests";
 import { useAuth } from "../contexts/AuthContext";
 import type { ServiceData, AddressData, CreateAddressRequest, UpdateAddressRequest, BookingData, AdminStatsData, AdminUserData, AdminBookingData, AdminCategoryData, AdminServiceRequestData, CreateCategoryPayload, UpdateCategoryPayload, ReviewServiceRequestPayload, ServiceRequestData, CreateServiceRequestPayload } from "../lib/api";
