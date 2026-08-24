@@ -4322,13 +4322,15 @@ export default function App() {
   }, [isAuthenticated, isHelper, isAdmin, screen]);
 
   useEffect(() => {
-    if (isLoading) return; // Don't redirect until auth state is resolved (preserves deep links).
+    // Keep the URL/screen untouched while unauthenticated (the login screen is
+    // shown) and while auth is still resolving. Only enforce once the role is known.
+    if (isLoading || !isAuthenticated) return;
     const adminScreens: Screen[] = ["admin-dashboard", "admin-users", "admin-bookings", "admin-categories", "admin-services", "admin-service-requests"];
     if (adminScreens.includes(screen) && !isAdmin) {
       setScreen("home");
       setPrevScreen("home");
     }
-  }, [screen, isAdmin, isLoading]);
+  }, [screen, isAdmin, isLoading, isAuthenticated]);
 
   // Keep the address bar in sync with the active screen.
   // Admin screens get real URLs; everything else resolves to "/".
@@ -4379,7 +4381,12 @@ export default function App() {
             <LoginScreen
               onLogin={async (email: string, password: string) => {
                 await login(email, password);
-                setScreen("home");
+                // Normal screens bounce to home so the role guard lands on the
+                // right dashboard. For an admin deep-link, keep the current screen
+                // so the guard/effects resolve it (admin → that screen, non-admin → home).
+                if (!SCREEN_TO_ADMIN_PATH[screen]) {
+                  setScreen("home");
+                }
               }}
               onNavigate={(s) => navigate(s === "register" ? "register" : s)}
               toast={pushToast}
