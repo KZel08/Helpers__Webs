@@ -118,10 +118,13 @@ export class AuthService {
       `[DEV] Email verification OTP for ${user.email}: ${otp}`,
     );
 
+    const isDemo = process.env.DEMO_OTP === 'true';
+
     return {
       user: UserMapper.toResponse(user),
       message:
         'Registration successful. Please verify your email.',
+      ...(isDemo ? { demoOtp: otp } : {}),
     };
   }
 
