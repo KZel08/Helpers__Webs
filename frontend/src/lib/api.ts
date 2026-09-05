@@ -141,6 +141,7 @@ export type UpdateAddressRequest = Partial<CreateAddressRequest>;
 export interface RegisterResponse {
   user: UserData;
   message: string;
+  demoOtp?: string;
 }
 
 export interface VerifyEmailResponse {

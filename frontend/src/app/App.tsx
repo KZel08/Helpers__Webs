@@ -10,6 +10,18 @@ import { useAuth } from "../contexts/AuthContext";
 import type { ServiceData, AddressData, CreateAddressRequest, UpdateAddressRequest, BookingData, HelperProfileData, AdminStatsData, AdminUserData, AdminBookingData, AdminCategoryData, AdminServiceRequestData, CreateCategoryPayload, UpdateCategoryPayload, ReviewServiceRequestPayload, ServiceRequestData, CreateServiceRequestPayload, CreateAdminServicePayload, AdminHelperData } from "../lib/api";
 import { bookingsApi, paymentsApi, helpersApi, adminApi, servicesApi } from "../lib/api";
 import { loadRazorpayScript } from "../lib/razorpay";
+import { Aurora } from "./components/aurora/Aurora";
+import { HelpersLogo } from "./components/brand/HelpersLogo";
+import { LoadingScreen } from "./components/ui/LoadingScreen";
+import { Loader } from "./components/ui/Loader";
+import { AppHeader } from "./components/layout/AppHeader";
+import { PageContainer } from "./components/layout/PageContainer";
+import { SectionHeader } from "./components/layout/SectionHeader";
+import { PublicNavbar } from "./components/layout/PublicNavbar";
+import { PublicFooter } from "./components/layout/PublicFooter";
+import { ServiceMarketplaceCard } from "./components/layout/ServiceMarketplaceCard";
+import { LocationPicker } from "./components/location/LocationPicker";
+import { useLocationContext } from "../contexts/LocationContext";
 import {
   MapPin, Bell, Search, Star, ChevronRight, Home, Grid,
   CalendarCheck, User, Sparkles, Zap, Shield, Clock,
@@ -52,7 +64,7 @@ function buildBookingIso(dateLabel: string, timeLabel: string): string | null {
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type Screen = "home" | "explore" | "bookings" | "profile" | "detail" | "booking" | "addresses" | "booking-detail" | "helper-dashboard" | "helper-profile" | "helper-services" | "helper-bookings" | "admin-dashboard" | "admin-users" | "admin-bookings" | "admin-categories" | "admin-services" | "admin-service-requests" | "helper-booking-detail" | "helper-service-requests";
+type Screen = "landing" | "home" | "explore" | "bookings" | "profile" | "detail" | "booking" | "addresses" | "booking-detail" | "helper-dashboard" | "helper-profile" | "helper-services" | "helper-bookings" | "admin-dashboard" | "admin-users" | "admin-bookings" | "admin-categories" | "admin-services" | "admin-service-requests" | "helper-booking-detail" | "helper-service-requests";
 
 interface Provider {
   id: string;
@@ -79,15 +91,15 @@ const ALL_PROVIDERS: Provider[] = [
 ];
 
 const flashDeals = [
-  { id:"f1", service:"AC Deep Clean",       originalPrice:"₹999",   salePrice:"₹599", discount:"40% OFF", endsIn:47*60+22,      img:"https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=160&h=120&fit=crop&auto=format", color:"#06B6D4" },
-  { id:"f2", service:"Full Home Cleaning",  originalPrice:"₹1,299", salePrice:"₹799", discount:"38% OFF", endsIn:2*3600+14*60,  img:"https://images.unsplash.com/photo-1581578731548-c64695cc6952?w=160&h=120&fit=crop&auto=format", color:"#586CFF" },
-  { id:"f3", service:"Salon at Home",       originalPrice:"₹799",   salePrice:"₹449", discount:"44% OFF", endsIn:5*3600+58*60,  img:"https://images.unsplash.com/photo-1560066984-138dadb4c035?w=160&h=120&fit=crop&auto=format", color:"#EC4899" },
+  { id:"f1", service:"AC Deep Clean",       originalPrice:"₹999",   salePrice:"₹599", discount:"40% OFF", endsIn:47*60+22,      img:"https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=160&h=120&fit=crop&auto=format", color:"#4FC0E8" },
+  { id:"f2", service:"Full Home Cleaning",  originalPrice:"₹1,299", salePrice:"₹799", discount:"38% OFF", endsIn:2*3600+14*60,  img:"https://images.unsplash.com/photo-1581578731548-c64695cc6952?w=160&h=120&fit=crop&auto=format", color:"#7456D0" },
+  { id:"f3", service:"Salon at Home",       originalPrice:"₹799",   salePrice:"₹449", discount:"44% OFF", endsIn:5*3600+58*60,  img:"https://images.unsplash.com/photo-1560066984-138dadb4c035?w=160&h=120&fit=crop&auto=format", color:"#5BE7C4" },
 ];
 
 const testimonials = [
-  { id:"t1", name:"Neha R.",   avatar:"N", avatarColor:"#586CFF", text:"Arjun was on time, super professional. My apartment has never been this clean. Booking again next week!", service:"Deep Cleaning", rating:5 },
-  { id:"t2", name:"Sameer K.", avatar:"S", avatarColor:"#22C55E", text:"Ravi fixed our leaking pipe in under 30 minutes. Fair pricing, no hidden charges. Highly recommend!",   service:"Plumbing",      rating:5 },
-  { id:"t3", name:"Anjali M.", avatar:"A", avatarColor:"#EC4899", text:"Priya is an absolute gem! Got a bridal package done at home and I looked stunning. 10/10.",             service:"Salon",         rating:5 },
+  { id:"t1", name:"Neha R.",   avatar:"N", avatarColor:"#7456D0", text:"Arjun was on time, super professional. My apartment has never been this clean. Booking again next week!", service:"Deep Cleaning", rating:5 },
+  { id:"t2", name:"Sameer K.", avatar:"S", avatarColor:"#5BE7C4", text:"Ravi fixed our leaking pipe in under 30 minutes. Fair pricing, no hidden charges. Highly recommend!",   service:"Plumbing",      rating:5 },
+  { id:"t3", name:"Anjali M.", avatar:"A", avatarColor:"#4FC0E8", text:"Priya is an absolute gem! Got a bridal package done at home and I looked stunning. 10/10.",             service:"Salon",         rating:5 },
 ];
 
 const trendingSearches = ["AC Repair","Deep Clean","Electrician","Haircut at Home","Plumber","Pest Control"];
@@ -99,16 +111,16 @@ const recentlyBooked = [
 ];
 
 const promos = [
-  { label:"Limited offer",  title:"30% off your first\nhome cleaning!",        cta:"Claim Now",    gradient:"linear-gradient(135deg,#586CFF 0%,#7E57FF 100%)" },
-  { label:"Members only",   title:"Free priority booking\nwith Helpers Plus",  cta:"Upgrade Free", gradient:"linear-gradient(135deg,#F59E0B 0%,#EF4444 100%)" },
-  { label:"Refer & earn",   title:"Get ₹200 credit for\nevery friend you refer",cta:"Share Now",   gradient:"linear-gradient(135deg,#22C55E 0%,#06B6D4 100%)" },
+  { label:"Limited offer",  title:"30% off your first\nhome cleaning!",        cta:"Claim Now",    gradient:"linear-gradient(135deg,#7456D0 0%,#4FC0E8 100%)" },
+  { label:"Members only",   title:"Free priority booking\nwith Helpers Plus",  cta:"Upgrade Free", gradient:"linear-gradient(135deg,#5BE7C4 0%,#4FC0E8 100%)" },
+  { label:"Refer & earn",   title:"Get ₹200 credit for\nevery friend you refer",cta:"Share Now",   gradient:"linear-gradient(135deg,#5BE7C4 0%,#7456D0 100%)" },
 ];
 
 const liveActivity = [
-  { msg:"Vikram just booked a Plumber in Andheri",           time:"2m ago", dot:"#586CFF" },
+  { msg:"Vikram just booked a Plumber in Andheri",           time:"2m ago", dot:"#7456D0" },
   { msg:"Ananya rated Priya Sharma ⭐⭐⭐⭐⭐",              time:"5m ago", dot:"#F59E0B" },
-  { msg:"12 helpers available near Bandra right now",        time:"Live",   dot:"#22C55E" },
-  { msg:"Rohan rebooked Deep Cleaning for this Sunday",      time:"8m ago", dot:"#586CFF" },
+  { msg:"12 helpers available near Bandra right now",        time:"Live",   dot:"#5BE7C4" },
+  { msg:"Rohan rebooked Deep Cleaning for this Sunday",      time:"8m ago", dot:"#7456D0" },
 ];
 
 // ─── Toast system ─────────────────────────────────────────────────────────────
@@ -118,19 +130,28 @@ interface Toast { id: number; msg: string; color?: string }
 function ToastContainer({ toasts, dismiss }: { toasts: Toast[]; dismiss: (id: number) => void }) {
   return (
     <div className="absolute top-14 left-0 right-0 z-50 flex flex-col items-center gap-2 px-4 pointer-events-none">
-      {toasts.map((t) => (
-        <div
-          key={t.id}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-2xl text-white text-xs font-semibold shadow-lg pointer-events-auto"
-          style={{ background: t.color ?? "#20242D", border: "1px solid rgba(255,255,255,0.1)" }}
-        >
-          <CheckCircle2 size={13} className="shrink-0" />
-          <span>{t.msg}</span>
-          <button onClick={() => dismiss(t.id)} className="ml-1 opacity-60 hover:opacity-100">
-            <X size={12} />
-          </button>
-        </div>
-      ))}
+      {toasts.map((t) => {
+        const color = t.color ?? "#7456D0";
+        const isSuccess = color === "#5BE7C4";
+        const isError = color === "#EF4444";
+        const bgClass = isSuccess
+          ? "bg-accent-soft text-[#0B3D2E] border border-[rgba(91,231,196,0.3)]"
+          : isError
+            ? "bg-destructive/10 text-destructive border border-destructive/30"
+            : "bg-card text-foreground border border-border";
+        return (
+          <div
+            key={t.id}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs font-semibold shadow-lg pointer-events-auto ${bgClass}`}
+          >
+            <CheckCircle2 size={13} className="shrink-0" />
+            <span>{t.msg}</span>
+            <button onClick={() => dismiss(t.id)} className="ml-1 opacity-60 hover:opacity-100">
+              <X size={12} />
+            </button>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -151,15 +172,15 @@ function useCountdown(initialSeconds: number) {
 
 function getCategoryStyle(name: string) {
   const map: Record<string, { icon: string; color: string; bg: string }> = {
-    Cleaning:    { icon: "🧹", color: "#586CFF", bg: "rgba(88,108,255,0.15)"  },
-    Plumbing:    { icon: "🔧", color: "#22C55E", bg: "rgba(34,197,94,0.15)"   },
+    Cleaning:    { icon: "🧹", color: "#7456D0", bg: "rgba(116,86,208,0.15)"  },
+    Plumbing:    { icon: "🔧", color: "#5BE7C4", bg: "rgba(91,231,196,0.15)"  },
     Electrical:  { icon: "⚡", color: "#F59E0B", bg: "rgba(245,158,11,0.15)"  },
-    Salon:       { icon: "✂️", color: "#EC4899", bg: "rgba(236,72,153,0.15)"  },
-    Painting:    { icon: "🎨", color: "#8B5CF6", bg: "rgba(139,92,246,0.15)"  },
-    "AC Repair": { icon: "❄️", color: "#06B6D4", bg: "rgba(6,182,212,0.15)"   },
+    Salon:       { icon: "✂️", color: "#4FC0E8", bg: "rgba(79,192,232,0.15)"  },
+    Painting:    { icon: "🎨", color: "#7456D0", bg: "rgba(116,86,208,0.15)"  },
+    "AC Repair": { icon: "❄️", color: "#4FC0E8", bg: "rgba(79,192,232,0.15)"  },
     "Pest Control": { icon: "🐛", color: "#EF4444", bg: "rgba(239,68,68,0.15)" },
   };
-  return map[name] || { icon: "➕", color: "#A5A9B5", bg: "rgba(165,169,181,0.15)" };
+  return map[name] || { icon: "➕", color: "#6B7280", bg: "rgba(107,114,128,0.15)" };
 }
 
 // ─── Shared sub-components ────────────────────────────────────────────────────
@@ -170,12 +191,12 @@ type ApiBookingStatus = "PENDING" | "ACCEPTED" | "ONGOING" | "COMPLETED" | "CANC
 function BookingStatusPill({ status }: { status: string }) {
   const map: Record<string, { label: string; cls: string }> = {
     PENDING:   { label: "Pending",   cls: "text-[#F59E0B] bg-[rgba(245,158,11,0.15)]"  },
-    ACCEPTED:  { label: "Accepted",  cls: "text-[#586CFF] bg-[rgba(88,108,255,0.15)]"  },
-    ONGOING:   { label: "Ongoing",   cls: "text-[#06B6D4] bg-[rgba(6,182,212,0.15)]"   },
-    COMPLETED: { label: "Completed", cls: "text-[#22C55E] bg-[rgba(34,197,94,0.15)]"   },
-    CANCELLED: { label: "Cancelled", cls: "text-[#EF4444] bg-[rgba(239,68,68,0.15)]"   },
+    ACCEPTED:  { label: "Accepted",  cls: "text-primary bg-primary-soft"  },
+    ONGOING:   { label: "Ongoing",   cls: "text-[#4FC0E8] bg-[rgba(79,192,232,0.15)]"   },
+    COMPLETED: { label: "Completed", cls: "text-[#0B3D2E] bg-accent-soft"   },
+    CANCELLED: { label: "Cancelled", cls: "text-destructive bg-destructive/10"   },
   };
-  const entry = map[status] ?? { label: status, cls: "text-[#A5A9B5] bg-[rgba(165,169,181,0.15)]" };
+  const entry = map[status] ?? { label: status, cls: "text-muted-foreground bg-muted" };
   return <span className={`text-xs font-semibold px-2.5 py-1 rounded-full shrink-0 ${entry.cls}`}>{entry.label}</span>;
 }
 
@@ -183,8 +204,8 @@ function StarRow({ rating, reviews }: { rating: number; reviews: number }) {
   return (
     <div className="flex items-center gap-1">
       <Star size={12} fill="#F59E0B" stroke="none" />
-      <span className="text-xs font-semibold text-white">{rating}</span>
-      <span className="text-xs text-[#A5A9B5]">({reviews})</span>
+      <span className="text-xs font-semibold text-foreground">{rating}</span>
+      <span className="text-xs text-muted-foreground">({reviews})</span>
     </div>
   );
 }
@@ -193,23 +214,23 @@ function ProviderCard({ p, onClick }: { p: Provider; onClick: () => void }) {
   return (
     <button
       onClick={onClick}
-      className="bg-[#161920] border border-[#222733] rounded-2xl p-4 flex items-center gap-4 text-left w-full hover:bg-[#1E2229] active:scale-[0.98] transition-all"
+      className="bg-card border border-border rounded-2xl p-4 flex items-center gap-4 text-left w-full hover:bg-muted active:scale-[0.98] transition-all"
     >
-      <img src={p.img} alt={p.name} className="w-14 h-14 rounded-xl object-cover shrink-0 bg-[#20242D]" />
+      <img src={p.img} alt={p.name} className="w-14 h-14 rounded-xl object-cover shrink-0 bg-muted" />
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 mb-0.5">
-          <span className="font-bold text-white text-sm truncate" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>{p.name}</span>
-          {p.badge && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[rgba(88,108,255,0.2)] text-[#586CFF] shrink-0">{p.badge}</span>}
+          <span className="font-bold text-foreground text-sm truncate" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>{p.name}</span>
+          {p.badge && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-primary-soft text-primary shrink-0">{p.badge}</span>}
         </div>
-        <p className="text-[#A5A9B5] text-xs mb-1.5">{p.role}</p>
+        <p className="text-muted-foreground text-xs mb-1.5">{p.role}</p>
         <div className="flex items-center gap-2 flex-wrap">
           <StarRow rating={p.rating} reviews={p.reviews} />
-          {p.tags.map((t) => <span key={t} className="text-[10px] text-[#A5A9B5] bg-[#20242D] px-2 py-0.5 rounded-full">{t}</span>)}
+          {p.tags.map((t) => <span key={t} className="text-[10px] text-muted-foreground bg-muted px-2 py-0.5 rounded-full">{t}</span>)}
         </div>
       </div>
       <div className="text-right shrink-0">
-        <p className="text-white font-bold text-sm">{p.price}</p>
-        <p className="text-[#A5A9B5] text-[10px]">/ visit</p>
+        <p className="text-foreground font-bold text-sm">{p.price}</p>
+        <p className="text-muted-foreground text-[10px]">/ visit</p>
       </div>
     </button>
   );
@@ -224,23 +245,23 @@ function ServiceCard({ s, onClick }: { s: ServiceData; onClick: () => void }) {
   return (
     <button
       onClick={onClick}
-      className="bg-[#161920] border border-[#222733] rounded-2xl p-4 flex items-center gap-4 text-left w-full hover:bg-[#1E2229] active:scale-[0.98] transition-all"
+      className="bg-card border border-border rounded-2xl p-4 flex items-center gap-4 text-left w-full hover:bg-muted active:scale-[0.98] transition-all"
     >
-      <div className="w-14 h-14 rounded-xl bg-[#20242D] flex items-center justify-center text-white font-bold text-sm shrink-0">
+      <div className="w-14 h-14 rounded-xl bg-muted flex items-center justify-center text-foreground font-bold text-sm shrink-0">
         {s.media?.[0]?.url ? <img src={s.media[0].url} alt={title} className="w-full h-full object-cover rounded-xl" /> : <span className="text-xl">{(s.category?.name||'S')[0]}</span>}
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 mb-0.5">
-          <span className="font-bold text-white text-sm truncate" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>{title}</span>
+          <span className="font-bold text-foreground text-sm truncate" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>{title}</span>
         </div>
-        <p className="text-[#A5A9B5] text-xs mb-1.5">{helperName || s.category?.name}</p>
+        <p className="text-muted-foreground text-xs mb-1.5">{helperName || s.category?.name}</p>
         <div className="flex items-center gap-2">
           <StarRow rating={rating} reviews={0} />
         </div>
       </div>
       <div className="text-right shrink-0">
-        <p className="text-white font-bold text-sm">{price}</p>
-        <p className="text-[#A5A9B5] text-[10px]">per visit</p>
+        <p className="text-foreground font-bold text-sm">{price}</p>
+        <p className="text-muted-foreground text-[10px]">per visit</p>
       </div>
     </button>
   );
@@ -251,17 +272,17 @@ function FlashDealCard({ deal, onNavigate }: { deal: typeof flashDeals[0]; onNav
   return (
     <button
       onClick={() => onNavigate("explore")}
-      className="shrink-0 w-44 rounded-2xl overflow-hidden bg-[#161920] border border-[#222733] flex flex-col text-left active:scale-[0.97] transition-transform"
+      className="shrink-0 w-44 rounded-2xl overflow-hidden bg-card border border-border flex flex-col text-left active:scale-[0.97] transition-transform"
     >
-      <div className="relative h-24 bg-[#20242D]">
+      <div className="relative h-24 bg-muted">
         <img src={deal.img} alt={deal.service} className="w-full h-full object-cover" />
         <span className="absolute top-2 left-2 text-[10px] font-bold px-2 py-1 rounded-lg text-white" style={{ background:deal.color }}>{deal.discount}</span>
       </div>
       <div className="p-3 flex flex-col gap-1">
-        <p className="text-white font-bold text-xs leading-snug" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>{deal.service}</p>
+        <p className="text-foreground font-bold text-xs leading-snug" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>{deal.service}</p>
         <div className="flex items-center gap-2">
-          <span className="text-white font-bold text-sm">{deal.salePrice}</span>
-          <span className="text-[#A5A9B5] text-xs line-through">{deal.originalPrice}</span>
+          <span className="text-foreground font-bold text-sm">{deal.salePrice}</span>
+          <span className="text-muted-foreground text-xs line-through">{deal.originalPrice}</span>
         </div>
         <div className="flex items-center gap-1">
           <Timer size={10} className="text-[#F59E0B]" />
@@ -269,6 +290,26 @@ function FlashDealCard({ deal, onNavigate }: { deal: typeof flashDeals[0]; onNav
         </div>
       </div>
     </button>
+  );
+}
+
+// ─── Auth Layout (Login / Register) ────────────────────────────────────────────
+// Full-viewport aurora background + centered light card for the form.
+
+function AuthLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="relative min-h-screen w-full flex items-center justify-center px-4 py-8 sm:py-12 overflow-hidden" style={{ background: "#F8F7FB" }}>
+      <Aurora
+        colorStops={["#7456D0", "#4FC0E8", "#5BE7C4"]}
+        amplitude={1.0}
+        blend={0.5}
+        speed={1.0}
+        className="z-0"
+      />
+      <div className="relative z-10 w-full max-w-[440px] rounded-3xl p-6 sm:p-8 animate-fade-in" style={{ background: "rgba(255,255,255,0.85)", backdropFilter: "blur(14px)", WebkitBackdropFilter: "blur(14px)", border: "1px solid #E8E6EE", boxShadow: "0 10px 40px rgba(116,86,208,0.08)" }}>
+        {children}
+      </div>
+    </div>
   );
 }
 
@@ -287,7 +328,7 @@ function LoginScreen({ onLogin, onNavigate, toast }: { onLogin: (email: string, 
       await onLogin(email, password);
       setEmail("");
       setPassword("");
-      toast("Welcome back!", "#22C55E");
+      toast("Welcome back!", "#5BE7C4");
     } catch (err) {
       toast(err instanceof Error ? err.message : "Login failed. Please try again.", "#EF4444");
     } finally {
@@ -296,50 +337,50 @@ function LoginScreen({ onLogin, onNavigate, toast }: { onLogin: (email: string, 
   };
 
   return (
-    <div className="flex flex-col gap-5 pb-4 animate-fade-in">
-      <div className="pt-8 flex flex-col items-center gap-2">
-        <div className="w-16 h-16 rounded-2xl flex items-center justify-center text-white font-bold text-2xl" style={{ background:"linear-gradient(135deg,#586CFF,#7E57FF)" }}>H</div>
-        <h1 className="text-2xl font-bold text-white" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>Helpers</h1>
-        <p className="text-[#A5A9B5] text-sm">Sign in to continue</p>
+    <div className="flex flex-col gap-5 pb-2">
+      <div className="pt-2 flex flex-col items-center gap-2">
+        <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-white font-bold text-xl" style={{ background:"linear-gradient(135deg,#7456D0,#4FC0E8)" }}>H</div>
+        <h1 className="text-2xl font-bold text-foreground" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>Helpers</h1>
+        <p className="text-muted-foreground text-sm">Sign in to continue</p>
       </div>
 
-      <form onSubmit={handleSubmit} className="flex flex-col gap-4 mt-4">
+      <form onSubmit={handleSubmit} className="flex flex-col gap-4 mt-2">
         <div className="flex flex-col gap-2">
-          <label className="text-xs font-semibold uppercase tracking-[0.08em] text-[#A5A9B5]">Email</label>
-          <input
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="you@example.com"
-            required
-            className="w-full rounded-xl border border-[#222733] bg-[#20242D] px-4 py-3 text-sm text-white outline-none placeholder:text-[#A5A9B5] focus:border-[#586CFF]"
-          />
-        </div>
-        <div className="flex flex-col gap-2">
-          <label className="text-xs font-semibold uppercase tracking-[0.08em] text-[#A5A9B5]">Password</label>
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="••••••••"
-            required
-            className="w-full rounded-xl border border-[#222733] bg-[#20242D] px-4 py-3 text-sm text-white outline-none placeholder:text-[#A5A9B5] focus:border-[#586CFF]"
-          />
-        </div>
-        <button
-          type="submit"
-          disabled={isSubmitting}
-          className="w-full h-12 rounded-2xl font-bold text-white flex items-center justify-center gap-2 active:opacity-80 transition-opacity disabled:opacity-60"
-          style={{ background:"linear-gradient(135deg,#586CFF 0%,#7E57FF 100%)" }}
-        >
-          {isSubmitting ? "Signing in…" : "Sign In"}
-        </button>
-      </form>
+          <label className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">Email</label>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="you@example.com"
+              required
+              className="w-full rounded-xl border border-[#E8E6EE] bg-white px-4 py-3 text-sm text-[#1A1B2E] outline-none placeholder:text-[#9CA3AF] focus:border-[#7456D0] transition-colors"
+            />
+          </div>
+          <div className="flex flex-col gap-2">
+            <label className="text-xs font-semibold uppercase tracking-[0.08em] text-[#6B7280]">Password</label>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="••••••••"
+              required
+              className="w-full rounded-xl border border-[#E8E6EE] bg-white px-4 py-3 text-sm text-[#1A1B2E] outline-none placeholder:text-[#9CA3AF] focus:border-[#7456D0] transition-colors"
+            />
+          </div>
+          <button
+            type="submit"
+            disabled={isSubmitting}
+            className="w-full h-12 rounded-2xl font-bold text-white flex items-center justify-center gap-2 active:opacity-80 transition-opacity disabled:opacity-60"
+            style={{ background:"linear-gradient(135deg,#7456D0 0%,#6648C2 100%)" }}
+          >
+            {isSubmitting ? "Signing in…" : "Sign In"}
+          </button>
+        </form>
 
-      <p className="text-center text-[#A5A9B5] text-xs mt-2">
-        Don&apos;t have an account?{' '}
-        <button type="button" onClick={() => onNavigate("register")} className="text-[#586CFF] font-semibold">Create one</button>
-      </p>
+        <p className="text-center text-muted-foreground text-xs mt-2">
+          Don&apos;t have an account?{' '}
+          <button type="button" onClick={() => onNavigate("register")} className="text-primary font-semibold">Create one</button>
+        </p>
     </div>
   );
 }
@@ -359,7 +400,7 @@ function RegisterScreen({ onNavigate, onRegistered, toast }: { onNavigate: (s: S
     setIsSubmitting(true);
     try {
       const res = await register(form);
-      toast(res.message ?? "Registration successful. Please verify your email.", "#22C55E");
+      toast(res.message ?? "Registration successful. Please verify your email.", "#5BE7C4");
       onRegistered(form.email, res.demoOtp);
       onNavigate("verify-email");
     } catch (err) {
@@ -370,43 +411,43 @@ function RegisterScreen({ onNavigate, onRegistered, toast }: { onNavigate: (s: S
   };
 
   return (
-    <div className="flex flex-col gap-5 pb-4 animate-fade-in">
-      <div className="pt-8 flex flex-col items-center gap-2">
-        <div className="w-16 h-16 rounded-2xl flex items-center justify-center text-white font-bold text-2xl" style={{ background:"linear-gradient(135deg,#586CFF,#7E57FF)" }}>H</div>
-        <h1 className="text-2xl font-bold text-white" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>Create account</h1>
-        <p className="text-[#A5A9B5] text-sm">Start booking trusted helpers</p>
+    <div className="flex flex-col gap-5 pb-2">
+      <div className="pt-2 flex flex-col items-center gap-2">
+        <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-white font-bold text-xl" style={{ background:"linear-gradient(135deg,#7456D0,#4FC0E8)" }}>H</div>
+        <h1 className="text-2xl font-bold text-foreground" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>Create account</h1>
+        <p className="text-muted-foreground text-sm">Start booking trusted helpers</p>
       </div>
 
-      <form onSubmit={handleSubmit} className="flex flex-col gap-4 mt-4">
-        <div className="flex flex-col gap-2">
-          <label className="text-xs font-semibold uppercase tracking-[0.08em] text-[#A5A9B5]">First name</label>
-          <input type="text" value={form.firstName} onChange={update("firstName")} placeholder="Aisha" required className="w-full rounded-xl border border-[#222733] bg-[#20242D] px-4 py-3 text-sm text-white outline-none placeholder:text-[#A5A9B5] focus:border-[#586CFF]" />
-        </div>
-        <div className="flex flex-col gap-2">
-          <label className="text-xs font-semibold uppercase tracking-[0.08em] text-[#A5A9B5]">Last name</label>
-          <input type="text" value={form.lastName} onChange={update("lastName")} placeholder="Khan" required className="w-full rounded-xl border border-[#222733] bg-[#20242D] px-4 py-3 text-sm text-white outline-none placeholder:text-[#A5A9B5] focus:border-[#586CFF]" />
-        </div>
-        <div className="flex flex-col gap-2">
-          <label className="text-xs font-semibold uppercase tracking-[0.08em] text-[#A5A9B5]">Email</label>
-          <input type="email" value={form.email} onChange={update("email")} placeholder="you@example.com" required className="w-full rounded-xl border border-[#222733] bg-[#20242D] px-4 py-3 text-sm text-white outline-none placeholder:text-[#A5A9B5] focus:border-[#586CFF]" />
-        </div>
-        <div className="flex flex-col gap-2">
-          <label className="text-xs font-semibold uppercase tracking-[0.08em] text-[#A5A9B5]">Password</label>
-          <input type="password" value={form.password} onChange={update("password")} placeholder="Min 8 chars, 1 upper, 1 number, 1 symbol" required className="w-full rounded-xl border border-[#222733] bg-[#20242D] px-4 py-3 text-sm text-white outline-none placeholder:text-[#A5A9B5] focus:border-[#586CFF]" />
-        </div>
-        <div className="flex flex-col gap-2">
-          <label className="text-xs font-semibold uppercase tracking-[0.08em] text-[#A5A9B5]">Phone <span className="normal-case tracking-normal text-[#A5A9B5]">(optional)</span></label>
-          <input type="tel" value={form.phone} onChange={update("phone")} placeholder="+91 98765 43210" className="w-full rounded-xl border border-[#222733] bg-[#20242D] px-4 py-3 text-sm text-white outline-none placeholder:text-[#A5A9B5] focus:border-[#586CFF]" />
-        </div>
-        <button type="submit" disabled={isSubmitting} className="w-full h-12 rounded-2xl font-bold text-white flex items-center justify-center gap-2 active:opacity-80 transition-opacity disabled:opacity-60" style={{ background:"linear-gradient(135deg,#586CFF 0%,#7E57FF 100%)" }}>
-          {isSubmitting ? "Creating account…" : "Create Account"}
-        </button>
-      </form>
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4 mt-2">
+          <div className="flex flex-col gap-2">
+            <label className="text-xs font-semibold uppercase tracking-[0.08em] text-[#6B7280]">First name</label>
+            <input type="text" value={form.firstName} onChange={update("firstName")} placeholder="Aisha" required className="w-full rounded-xl border border-[#E8E6EE] bg-white px-4 py-3 text-sm text-[#1A1B2E] outline-none placeholder:text-[#9CA3AF] focus:border-[#7456D0] transition-colors" />
+          </div>
+          <div className="flex flex-col gap-2">
+            <label className="text-xs font-semibold uppercase tracking-[0.08em] text-[#6B7280]">Last name</label>
+            <input type="text" value={form.lastName} onChange={update("lastName")} placeholder="Khan" required className="w-full rounded-xl border border-[#E8E6EE] bg-white px-4 py-3 text-sm text-[#1A1B2E] outline-none placeholder:text-[#9CA3AF] focus:border-[#7456D0] transition-colors" />
+          </div>
+          <div className="flex flex-col gap-2">
+            <label className="text-xs font-semibold uppercase tracking-[0.08em] text-[#6B7280]">Email</label>
+            <input type="email" value={form.email} onChange={update("email")} placeholder="you@example.com" required className="w-full rounded-xl border border-[#E8E6EE] bg-white px-4 py-3 text-sm text-[#1A1B2E] outline-none placeholder:text-[#9CA3AF] focus:border-[#7456D0] transition-colors" />
+          </div>
+          <div className="flex flex-col gap-2">
+            <label className="text-xs font-semibold uppercase tracking-[0.08em] text-[#6B7280]">Password</label>
+            <input type="password" value={form.password} onChange={update("password")} placeholder="Min 8 chars, 1 upper, 1 number, 1 symbol" required className="w-full rounded-xl border border-[#E8E6EE] bg-white px-4 py-3 text-sm text-[#1A1B2E] outline-none placeholder:text-[#9CA3AF] focus:border-[#7456D0] transition-colors" />
+          </div>
+          <div className="flex flex-col gap-2">
+            <label className="text-xs font-semibold uppercase tracking-[0.08em] text-[#6B7280]">Phone <span className="normal-case tracking-normal text-[#6B7280]">(optional)</span></label>
+            <input type="tel" value={form.phone} onChange={update("phone")} placeholder="+91 98765 43210" className="w-full rounded-xl border border-[#E8E6EE] bg-white px-4 py-3 text-sm text-[#1A1B2E] outline-none placeholder:text-[#9CA3AF] focus:border-[#7456D0] transition-colors" />
+          </div>
+          <button type="submit" disabled={isSubmitting} className="w-full h-12 rounded-2xl font-bold text-white flex items-center justify-center gap-2 active:opacity-80 transition-opacity disabled:opacity-60" style={{ background:"linear-gradient(135deg,#7456D0 0%,#6648C2 100%)" }}>
+            {isSubmitting ? "Creating account…" : "Create Account"}
+          </button>
+        </form>
 
-      <p className="text-center text-[#A5A9B5] text-xs mt-2">
-        Already have an account?{' '}
-        <button type="button" onClick={() => onNavigate("login")} className="text-[#586CFF] font-semibold">Sign in</button>
-      </p>
+        <p className="text-center text-muted-foreground text-xs mt-2">
+          Already have an account?{' '}
+          <button type="button" onClick={() => onNavigate("login")} className="text-primary font-semibold">Sign in</button>
+        </p>
     </div>
   );
 }
@@ -424,7 +465,7 @@ function OTPScreen({ email, demoOtp, onVerified, toast }: { email: string; demoO
     setIsSubmitting(true);
     try {
       await verifyEmail(email, otp);
-      toast("Email verified! Welcome to Helpers.", "#22C55E");
+      toast("Email verified! Welcome to Helpers.", "#5BE7C4");
       onVerified();
     } catch (err) {
       toast(err instanceof Error ? err.message : "Verification failed. Please try again.", "#EF4444");
@@ -434,22 +475,22 @@ function OTPScreen({ email, demoOtp, onVerified, toast }: { email: string; demoO
   };
 
   return (
-    <div className="flex flex-col gap-5 pb-4 animate-fade-in">
-      <div className="pt-8 flex flex-col items-center gap-2">
-        <div className="w-16 h-16 rounded-2xl flex items-center justify-center text-white font-bold text-2xl" style={{ background:"linear-gradient(135deg,#586CFF,#7E57FF)" }}>H</div>
-        <h1 className="text-2xl font-bold text-white" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>Verify your email</h1>
-        <p className="text-[#A5A9B5] text-sm text-center">Enter the 6-digit code sent to<br/><span className="text-white font-semibold">{email}</span></p>
-      {demoOtp && (
-        <div className="rounded-xl border border-[#222733] bg-[#161920] p-4 text-center">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[#A5A9B5] mb-1">Demo OTP</p>
-          <p className="text-3xl font-bold tracking-[0.5em] text-white">{demoOtp}</p>
-        </div>
-      )}
+    <div className="flex flex-col gap-5 pb-2 animate-fade-in">
+      <div className="pt-2 flex flex-col items-center gap-2">
+        <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-white font-bold text-xl" style={{ background:"linear-gradient(135deg,#7456D0,#4FC0E8)" }}>H</div>
+        <h1 className="text-2xl font-bold text-foreground" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>Verify your email</h1>
+        <p className="text-muted-foreground text-sm text-center">Enter the 6-digit code sent to<br/><span className="text-foreground font-semibold">{email}</span></p>
+        {demoOtp && (
+          <div className="rounded-xl border border-border bg-muted p-4 text-center">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground mb-1">Demo OTP</p>
+            <p className="text-3xl font-bold tracking-[0.5em] text-foreground">{demoOtp}</p>
+          </div>
+        )}
       </div>
 
-      <form onSubmit={handleSubmit} className="flex flex-col gap-4 mt-4">
+      <form onSubmit={handleSubmit} className="flex flex-col gap-4 mt-2">
         <div className="flex flex-col gap-2">
-          <label className="text-xs font-semibold uppercase tracking-[0.08em] text-[#A5A9B5]">Verification code</label>
+          <label className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">Verification code</label>
           <input
             type="text"
             inputMode="numeric"
@@ -458,17 +499,43 @@ function OTPScreen({ email, demoOtp, onVerified, toast }: { email: string; demoO
             onChange={(e) => setOtp(e.target.value.replace(/\D/g, ""))}
             placeholder="123456"
             required
-            className="w-full rounded-xl border border-[#222733] bg-[#20242D] px-4 py-3 text-sm text-white outline-none placeholder:text-[#A5A9B5] focus:border-[#586CFF] text-center tracking-[0.5em]"
+            className="w-full rounded-xl border border-border bg-white px-4 py-3 text-sm text-foreground outline-none placeholder:text-muted-foreground focus:border-primary text-center tracking-[0.5em] transition-colors"
           />
         </div>
-        <button type="submit" disabled={isSubmitting || otp.length !== 6} className="w-full h-12 rounded-2xl font-bold text-white flex items-center justify-center gap-2 active:opacity-80 transition-opacity disabled:opacity-60" style={{ background:"linear-gradient(135deg,#586CFF 0%,#7E57FF 100%)" }}>
+        <button type="submit" disabled={isSubmitting || otp.length !== 6} className="w-full h-12 rounded-2xl font-bold text-white flex items-center justify-center gap-2 active:opacity-80 transition-opacity disabled:opacity-60" style={{ background:"linear-gradient(135deg,#7456D0 0%,#6648C2 100%)" }}>
           {isSubmitting ? "Verifying…" : "Verify Email"}
         </button>
       </form>
 
-      <p className="text-center text-[#A5A9B5] text-xs mt-2">
+      <p className="text-center text-muted-foreground text-xs mt-2">
         Didn&apos;t receive it? Check your spam folder or try registering again.
       </p>
+    </div>
+  );
+}
+
+// ─── Coming Soon empty state (customer service displays) ────────────────────
+
+function ComingSoonState({ onNavigate }: { onNavigate?: (s: Screen, id?: string) => void }) {
+  return (
+    <div className="text-center py-12 px-4 animate-fade-in">
+      <div className="w-20 h-20 rounded-full mx-auto mb-5 flex items-center justify-center" style={{ background: "rgba(116,86,208,0.10)" }}>
+        <Sparkles size={36} className="text-primary" />
+      </div>
+      <h3 className="text-lg font-bold text-foreground mb-2" style={{ fontFamily: "'Plus Jakarta Sans',sans-serif" }}>
+        Services Coming Soon
+      </h3>
+      <p className="text-muted-foreground text-sm leading-relaxed max-w-[300px] mx-auto">
+        We're preparing services for your area. Please check back soon.
+      </p>
+      {onNavigate && (
+        <button
+          onClick={() => onNavigate("home")}
+          className="mt-5 text-primary text-sm font-semibold"
+        >
+          Back to home
+        </button>
+      )}
     </div>
   );
 }
@@ -489,9 +556,9 @@ function HomeScreen({ onNavigate, toast, user }: { onNavigate: (s: Screen, id?: 
   const greeting = displayName ? `Hello, ${displayName}` : "Welcome to Helpers";
 
   const handlePromoCta = () => {
-    if (promoIdx === 0) toast("Promo code FIRST30 applied! 30% off your first booking.", "#586CFF");
+    if (promoIdx === 0) toast("Promo code FIRST30 applied! 30% off your first booking.", "#7456D0");
     else if (promoIdx === 1) onNavigate("profile");
-    else toast("Referral link copied! Share with friends to earn ₹200.", "#22C55E");
+    else toast("Referral link copied! Share with friends to earn ₹200.", "#5BE7C4");
   };
 
   return (
@@ -500,23 +567,23 @@ function HomeScreen({ onNavigate, toast, user }: { onNavigate: (s: Screen, id?: 
       {/* Header */}
       <div className="flex items-start justify-between pt-2">
         <div>
-          <button onClick={() => toast("Location services coming soon")} className="flex items-center gap-1.5 text-[#A5A9B5] text-sm mb-0.5">
-            <MapPin size={13} className="text-[#586CFF]" />
+          <button onClick={() => toast("Location services coming soon")} className="flex items-center gap-1.5 text-muted-foreground text-sm mb-0.5">
+            <MapPin size={13} className="text-primary" />
             <span>Mumbai, India</span>
             <ChevronRight size={13} />
           </button>
-          <h1 className="text-xl font-bold text-white" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>{greeting}</h1>
+          <h1 className="text-xl font-bold text-foreground" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>{greeting}</h1>
         </div>
-        <button onClick={() => toast("Notifications coming soon")} className="relative w-10 h-10 rounded-full bg-[#20242D] flex items-center justify-center active:scale-90 transition-transform">
-          <Bell size={18} className="text-white" />
+        <button onClick={() => toast("Notifications coming soon")} className="relative w-10 h-10 rounded-full bg-muted flex items-center justify-center active:scale-90 transition-transform">
+          <Bell size={18} className="text-foreground" />
         </button>
       </div>
 
       {/* Search */}
-      <button onClick={() => onNavigate("explore")} className="flex items-center gap-3 bg-[#20242D] rounded-2xl px-4 py-3.5 w-full text-left active:scale-[0.98] transition-transform">
-        <Search size={18} className="text-[#A5A9B5] shrink-0" />
-        <span className="flex-1 text-[#A5A9B5] text-sm">Search for a service or helper…</span>
-        <div className="w-8 h-8 rounded-xl bg-[#586CFF] flex items-center justify-center shrink-0">
+      <button onClick={() => onNavigate("explore")} className="flex items-center gap-3 bg-muted rounded-2xl px-4 py-3.5 w-full text-left active:scale-[0.98] transition-transform">
+        <Search size={18} className="text-muted-foreground shrink-0" />
+        <span className="flex-1 text-muted-foreground text-sm">Search for a service or helper…</span>
+        <div className="w-8 h-8 rounded-xl bg-primary flex items-center justify-center shrink-0">
           <Filter size={14} className="text-white" />
         </div>
       </button>
@@ -524,8 +591,8 @@ function HomeScreen({ onNavigate, toast, user }: { onNavigate: (s: Screen, id?: 
       {/* Trending searches */}
       <div className="flex gap-2 overflow-x-auto pb-0.5" style={{ scrollbarWidth:"none" }}>
         {trendingSearches.map((term) => (
-          <button key={term} onClick={() => onNavigate("explore")} className="shrink-0 flex items-center gap-1.5 bg-[#20242D] text-[#A5A9B5] text-xs font-medium px-3 py-2 rounded-full hover:text-white active:scale-95 transition-all">
-            <TrendingUp size={11} className="text-[#586CFF]" />
+          <button key={term} onClick={() => onNavigate("explore")} className="shrink-0 flex items-center gap-1.5 bg-muted text-muted-foreground text-xs font-medium px-3 py-2 rounded-full hover:text-foreground hover:bg-primary-soft active:scale-95 transition-all">
+            <TrendingUp size={11} className="text-primary" />
             {term}
           </button>
         ))}
@@ -538,11 +605,11 @@ function HomeScreen({ onNavigate, toast, user }: { onNavigate: (s: Screen, id?: 
           <div className="absolute -right-2 bottom-2 w-16 h-16 rounded-full opacity-10 bg-white" />
           <span className="text-xs font-semibold text-white/70 uppercase tracking-wider">{promo.label}</span>
           <p className="text-white font-bold text-lg mt-1 leading-snug whitespace-pre-line" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>{promo.title}</p>
-          <div className="mt-3 inline-block bg-white text-xs font-bold px-4 py-2 rounded-xl" style={{ color:"#586CFF" }}>{promo.cta}</div>
+          <div className="mt-3 inline-block bg-white text-xs font-bold px-4 py-2 rounded-xl" style={{ color:"#7456D0" }}>{promo.cta}</div>
         </div>
         <div className="flex justify-center gap-1.5 mt-2.5">
           {promos.map((_, i) => (
-            <button key={i} onClick={() => setPromoIdx(i)} className="rounded-full transition-all duration-300" style={{ width:i===promoIdx?20:6, height:6, background:i===promoIdx?"#586CFF":"#20242D" }} />
+            <button key={i} onClick={() => setPromoIdx(i)} className="rounded-full transition-all duration-300" style={{ width:i===promoIdx?20:6, height:6, background:i===promoIdx?"#7456D0":"#E8E6EE" }} />
           ))}
         </div>
       </div>
@@ -550,27 +617,25 @@ function HomeScreen({ onNavigate, toast, user }: { onNavigate: (s: Screen, id?: 
       {/* Services */}
       <div>
         <div className="flex items-center justify-between mb-3">
-          <h2 className="font-bold text-white" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>Services</h2>
-          <button onClick={() => onNavigate("explore")} className="text-[#586CFF] text-sm font-semibold">See all</button>
+          <h2 className="font-bold text-foreground" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>Services</h2>
+          <button onClick={() => onNavigate("explore")} className="text-primary text-sm font-semibold">See all</button>
         </div>
         {categoriesLoading ? (
           <div className="grid grid-cols-4 gap-3">
             {Array.from({ length: 8 }).map((_, i) => (
               <div key={i} className="flex flex-col items-center gap-2">
-                <div className="w-full aspect-square rounded-2xl bg-[#20242D] animate-pulse" />
-                <div className="h-3 w-12 bg-[#20242D] rounded animate-pulse" />
+                <div className="w-full aspect-square rounded-2xl bg-muted animate-pulse" />
+                <div className="h-3 w-12 bg-muted rounded animate-pulse" />
               </div>
             ))}
           </div>
         ) : categoriesError ? (
           <div className="text-center py-8">
-            <p className="text-[#EF4444] text-sm">Failed to load categories</p>
-            <button onClick={() => refetch()} className="mt-2 text-[#586CFF] text-sm font-semibold">Retry</button>
+            <p className="text-destructive text-sm">Failed to load categories</p>
+            <button onClick={() => refetch()} className="mt-2 text-primary text-sm font-semibold">Retry</button>
           </div>
         ) : categories.length === 0 ? (
-          <div className="text-center py-8">
-            <p className="text-[#A5A9B5] text-sm">No categories available</p>
-          </div>
+          <ComingSoonState />
         ) : (
           <div className="grid grid-cols-4 gap-3">
             {categories.map((c) => {
@@ -578,7 +643,7 @@ function HomeScreen({ onNavigate, toast, user }: { onNavigate: (s: Screen, id?: 
               return (
                 <button key={c.id} onClick={() => onNavigate("explore")} className="flex flex-col items-center gap-2 group">
                   <div className="w-full aspect-square rounded-2xl flex items-center justify-center text-2xl group-active:scale-90 transition-transform" style={{ background:style.bg }}>{style.icon}</div>
-                  <span className="text-xs text-[#A5A9B5] font-medium text-center leading-tight">{c.name}</span>
+                  <span className="text-xs text-muted-foreground font-medium text-center leading-tight">{c.name}</span>
                 </button>
               );
             })}
@@ -589,8 +654,8 @@ function HomeScreen({ onNavigate, toast, user }: { onNavigate: (s: Screen, id?: 
       {/* Top Helpers */}
       <div>
         <div className="flex items-center justify-between mb-3">
-          <h2 className="font-bold text-white" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>Top Helpers Nearby</h2>
-          <button onClick={() => onNavigate("explore")} className="text-[#586CFF] text-sm font-semibold">See all</button>
+          <h2 className="font-bold text-foreground" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>Top Helpers Nearby</h2>
+          <button onClick={() => onNavigate("explore")} className="text-primary text-sm font-semibold">See all</button>
         </div>
         <div className="flex flex-col gap-3">
           {ALL_PROVIDERS.slice(0,3).map((p) => <ProviderCard key={p.id} p={p} onClick={() => onNavigate("explore")} />)}
@@ -600,52 +665,52 @@ function HomeScreen({ onNavigate, toast, user }: { onNavigate: (s: Screen, id?: 
       {/* Testimonials */}
       <div>
         <div className="flex items-center gap-2 mb-3">
-          <ThumbsUp size={15} className="text-[#22C55E]" />
-          <h2 className="font-bold text-white" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>What Customers Say</h2>
+          <ThumbsUp size={15} className="text-[#5BE7C4]" />
+          <h2 className="font-bold text-foreground" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>What Customers Say</h2>
         </div>
         <div className="flex gap-3 overflow-x-auto pb-1" style={{ scrollbarWidth:"none" }}>
           {testimonials.map((t) => (
-               <div key={t.id} className="shrink-0 w-60 bg-[#161920] border border-[#222733] rounded-2xl p-4 flex flex-col gap-3">
+               <div key={t.id} className="shrink-0 w-60 bg-card border border-border rounded-2xl p-4 flex flex-col gap-3">
               <div className="flex items-center gap-3">
                 <div className="w-9 h-9 rounded-full flex items-center justify-center text-white font-bold text-sm shrink-0" style={{ background:t.avatarColor }}>{t.avatar}</div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-white font-bold text-xs">{t.name}</p>
-                  <p className="text-[#A5A9B5] text-[10px]">{t.service}</p>
+                  <p className="text-foreground font-bold text-xs">{t.name}</p>
+                  <p className="text-muted-foreground text-[10px]">{t.service}</p>
                 </div>
                 <div className="flex gap-0.5 shrink-0">{Array.from({length:t.rating}).map((_,i)=><Star key={i} size={10} fill="#F59E0B" stroke="none"/>)}</div>
               </div>
-              <p className="text-[#A5A9B5] text-xs leading-relaxed">&ldquo;{t.text}&rdquo;</p>
+              <p className="text-muted-foreground text-xs leading-relaxed">&ldquo;{t.text}&rdquo;</p>
             </div>
           ))}
         </div>
       </div>
 
       {/* Why Helpers */}
-      <div className="bg-[#161920] border border-[#222733] rounded-2xl p-5">
-        <h3 className="font-bold text-white mb-4" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>Why Helpers?</h3>
+      <div className="bg-card border border-border rounded-2xl p-5">
+        <h3 className="font-bold text-foreground mb-4" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>Why Helpers?</h3>
         <div className="flex flex-col gap-3">
           {[
-            { icon:Shield,   text:"Background-verified professionals", color:"#22C55E" },
+            { icon:Shield,   text:"Background-verified professionals", color:"#5BE7C4" },
             { icon:Zap,      text:"Same-day service, 60-min response", color:"#F59E0B" },
-            { icon:Sparkles, text:"Satisfaction guarantee on every job",color:"#586CFF" },
+            { icon:Sparkles, text:"Satisfaction guarantee on every job",color:"#7456D0" },
           ].map(({ icon:Icon, text, color }) => (
             <div key={text} className="flex items-center gap-3">
               <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ background:`${color}20` }}><Icon size={16} style={{ color }} /></div>
-              <p className="text-sm text-[#A5A9B5]">{text}</p>
+              <p className="text-sm text-muted-foreground">{text}</p>
             </div>
           ))}
         </div>
       </div>
 
       {/* Refer & Earn */}
-      <div className="rounded-2xl p-5" style={{ background:"linear-gradient(135deg,rgba(34,197,94,0.12) 0%,rgba(6,182,212,0.12) 100%)", border:"1px solid rgba(34,197,94,0.25)" }}>
+      <div className="rounded-2xl p-5" style={{ background:"linear-gradient(135deg,rgba(91,231,196,0.12) 0%,rgba(79,192,232,0.12) 100%)", border:"1px solid rgba(91,231,196,0.25)" }}>
         <div className="flex items-center gap-4">
-          <div className="w-12 h-12 rounded-2xl flex items-center justify-center shrink-0" style={{ background:"rgba(34,197,94,0.15)" }}><Gift size={22} className="text-[#22C55E]" /></div>
+          <div className="w-12 h-12 rounded-2xl flex items-center justify-center shrink-0" style={{ background:"rgba(91,231,196,0.15)" }}><Gift size={22} className="text-[#5BE7C4]" /></div>
           <div className="flex-1 min-w-0">
-            <p className="text-white font-bold text-sm" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>Refer friends, earn ₹200 each</p>
-            <p className="text-[#A5A9B5] text-xs mt-0.5">They get ₹100 off their first booking too!</p>
+            <p className="text-foreground font-bold text-sm" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>Refer friends, earn ₹200 each</p>
+            <p className="text-muted-foreground text-xs mt-0.5">They get ₹100 off their first booking too!</p>
           </div>
-          <button onClick={() => toast("Referral link copied! Share it to earn ₹200.", "#22C55E")} className="shrink-0 bg-[#22C55E] text-white text-xs font-bold px-3 py-2 rounded-xl active:scale-90 transition-transform flex items-center gap-1">
+          <button onClick={() => toast("Referral link copied! Share it to earn ₹200.", "#5BE7C4")} className="shrink-0 bg-[#5BE7C4] text-white text-xs font-bold px-3 py-2 rounded-xl active:scale-90 transition-transform flex items-center gap-1">
             <Share2 size={12} />Invite
           </button>
         </div>
@@ -680,42 +745,38 @@ function ExploreScreen({ onNavigate, toast }: { onNavigate: (s: Screen, id?: str
     <div className="flex flex-col gap-5 pb-4 animate-fade-in">
       {/* Search */}
       <div className="flex items-center gap-3 pt-2">
-        <div className="flex items-center gap-3 flex-1 bg-[#20242D] rounded-2xl px-4 py-3.5">
-          <Search size={18} className="text-[#A5A9B5] shrink-0" />
-          <input className="bg-transparent flex-1 text-white text-sm outline-none placeholder:text-[#A5A9B5]" placeholder="Search services…" value={query} onChange={(e) => setQuery(e.target.value)} />
-          {query.length > 0 && <button onClick={() => setQuery("")} className="text-[#A5A9B5] hover:text-white"><X size={14}/></button>}
+        <div className="flex items-center gap-3 flex-1 bg-muted rounded-2xl px-4 py-3.5">
+          <Search size={18} className="text-muted-foreground shrink-0" />
+          <input className="bg-transparent flex-1 text-foreground text-sm outline-none placeholder:text-muted-foreground" placeholder="Search services…" value={query} onChange={(e) => setQuery(e.target.value)} />
+          {query.length > 0 && <button onClick={() => setQuery("")} className="text-muted-foreground hover:text-foreground"><X size={14}/></button>}
         </div>
-        <button onClick={() => setShowFilter(!showFilter)} className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 transition-colors ${showFilter ? "bg-[#586CFF]" : "bg-[#20242D]"}`}>
-          <SlidersHorizontal size={18} className={showFilter ? "text-white" : "text-[#A5A9B5]"} />
+        <button onClick={() => setShowFilter(!showFilter)} className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 transition-colors ${showFilter ? "bg-primary" : "bg-muted"}`}>
+          <SlidersHorizontal size={18} className={showFilter ? "text-white" : "text-muted-foreground"} />
         </button>
       </div>
 
       {/* Filter chips */}
       <div className="flex gap-2 overflow-x-auto pb-1" style={{ scrollbarWidth:"none" }}>
         {["All", ...categories.map((c) => c.name)].map((f) => (
-          <button key={f} onClick={() => setActive(f)} className={`shrink-0 px-4 py-2 rounded-full text-sm font-semibold transition-colors ${active===f?"bg-[#586CFF] text-white":"bg-[#20242D] text-[#A5A9B5] hover:text-white"}`}>{f}</button>
+          <button key={f} onClick={() => setActive(f)} className={`shrink-0 px-4 py-2 rounded-full text-sm font-semibold transition-colors ${active===f?"bg-primary text-white":"bg-muted text-muted-foreground hover:text-foreground"}`}>{f}</button>
         ))}
       </div>
 
-      <p className="text-[#A5A9B5] text-sm">{total} service{total!==1?"s":""} found{active!=="All"?` for ${active}`:""}</p>
+      <p className="text-muted-foreground text-sm">{total} service{total!==1?"s":""} found{active!=="All"?` for ${active}`:""}</p>
 
       <div className="flex flex-col gap-3">
         {isLoading ? (
           <div className="text-center py-12">
-            <Search size={40} className="text-[#A5A9B5] mx-auto mb-3 opacity-30" />
-            <p className="text-[#A5A9B5]">Loading services…</p>
+            <Search size={40} className="text-muted-foreground mx-auto mb-3 opacity-30" />
+            <p className="text-muted-foreground">Loading services…</p>
           </div>
         ) : error ? (
           <div className="text-center py-8">
-            <p className="text-[#EF4444] text-sm">{error}</p>
-            <button onClick={onRetry} className="mt-2 text-[#586CFF] text-sm font-semibold">Retry</button>
+            <p className="text-destructive text-sm">{error}</p>
+            <button onClick={onRetry} className="mt-2 text-primary text-sm font-semibold">Retry</button>
           </div>
         ) : services.length === 0 ? (
-          <div className="text-center py-12">
-            <Search size={40} className="text-[#A5A9B5] mx-auto mb-3 opacity-30" />
-            <p className="text-[#A5A9B5]">No services match your search</p>
-            <button onClick={() => { setQuery(""); setActive("All"); }} className="mt-3 text-[#586CFF] text-sm font-semibold">Clear filters</button>
-          </div>
+          <ComingSoonState onNavigate={onNavigate} />
         ) : (
           services.map((s) => <ServiceCard key={s.id} s={s} onClick={() => onNavigate("detail", s.id)} />)
         )}
@@ -724,7 +785,7 @@ function ExploreScreen({ onNavigate, toast }: { onNavigate: (s: Screen, id?: str
       {/* Pagination / Load more */}
       {!isLoading && services.length < total && (
         <div className="flex justify-center mt-3">
-          <button onClick={() => setPage((p) => p + 1)} className="px-4 py-2 rounded-xl bg-[#586CFF] text-white font-semibold">Load more</button>
+          <button onClick={() => setPage((p) => p + 1)} className="px-4 py-2 rounded-xl bg-primary text-white font-semibold">Load more</button>
         </div>
       )}
     </div>
@@ -742,13 +803,13 @@ function DetailScreen({ providerId, onBack, onBook, toast }: { providerId: strin
   if (isLoading) {
     return (
       <div className="flex flex-col pb-4">
-        <div className="relative -mx-5 h-56 bg-[#20242D] animate-pulse" />
+        <div className="relative -mx-5 h-56 bg-muted animate-pulse" />
         <div className="p-4">
-          <div className="h-6 bg-[#20242D] rounded w-3/4 mb-3 animate-pulse" />
-          <div className="h-4 bg-[#20242D] rounded w-1/2 mb-3 animate-pulse" />
+          <div className="h-6 bg-muted rounded w-3/4 mb-3 animate-pulse" />
+          <div className="h-4 bg-muted rounded w-1/2 mb-3 animate-pulse" />
           <div className="space-y-2">
-            <div className="h-12 bg-[#20242D] rounded animate-pulse" />
-            <div className="h-12 bg-[#20242D] rounded animate-pulse" />
+            <div className="h-12 bg-muted rounded animate-pulse" />
+            <div className="h-12 bg-muted rounded animate-pulse" />
           </div>
         </div>
       </div>
@@ -758,10 +819,10 @@ function DetailScreen({ providerId, onBack, onBook, toast }: { providerId: strin
   if (error) {
     return (
       <div className="text-center py-12">
-        <p className="text-[#EF4444] text-sm">{error}</p>
+        <p className="text-destructive text-sm">{error}</p>
         <div className="mt-3 flex justify-center gap-2">
-          <button onClick={onRetry} className="text-[#586CFF] text-sm font-semibold">Retry</button>
-          <button onClick={onBack} className="text-[#A5A9B5] text-sm">Back</button>
+          <button onClick={onRetry} className="text-primary text-sm font-semibold">Retry</button>
+          <button onClick={onBack} className="text-muted-foreground text-sm">Back</button>
         </div>
       </div>
     );
@@ -770,9 +831,9 @@ function DetailScreen({ providerId, onBack, onBook, toast }: { providerId: strin
   if (!service) {
     return (
       <div className="text-center py-12">
-        <Search size={40} className="text-[#A5A9B5] mx-auto mb-3 opacity-30" />
-        <p className="text-[#A5A9B5]">Service not found</p>
-        <button onClick={onBack} className="mt-3 text-[#586CFF] text-sm font-semibold">Back</button>
+        <Search size={40} className="text-muted-foreground mx-auto mb-3 opacity-30" />
+        <p className="text-muted-foreground">Service not found</p>
+        <button onClick={onBack} className="mt-3 text-primary text-sm font-semibold">Back</button>
       </div>
     );
   }
@@ -787,55 +848,55 @@ function DetailScreen({ providerId, onBack, onBook, toast }: { providerId: strin
 
   return (
     <div className="flex flex-col pb-4 animate-fade-in">
-      <div className="relative -mx-5 h-56 bg-[#20242D]">
+      <div className="relative -mx-5 h-56 bg-muted">
         {service.media?.[0]?.url ? (
           <>
             <img src={service.media[0].url} alt={name} className="w-full h-full object-cover object-top" />
-            <div className="absolute inset-0" style={{ background:"linear-gradient(to bottom,rgba(15,17,21,0.3) 0%,rgba(15,17,21,0.85) 100%)" }} />
+            <div className="absolute inset-0" style={{ background:"linear-gradient(to bottom,rgba(248,247,251,0.1) 0%,rgba(248,247,251,0.4) 100%)" }} />
           </>
         ) : (
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(88,108,255,0.35),_transparent_55%)]" />
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(116,86,208,0.2),_transparent_55%)]" />
         )}
-        <button onClick={onBack} className="absolute top-4 left-5 w-10 h-10 rounded-full bg-[rgba(15,17,21,0.6)] backdrop-blur-sm flex items-center justify-center active:scale-90 transition-transform">
-          <ArrowLeft size={18} className="text-white" />
+        <button onClick={onBack} className="absolute top-4 left-5 w-10 h-10 rounded-full bg-[rgba(255,255,255,0.85)] backdrop-blur-sm flex items-center justify-center active:scale-90 transition-transform">
+          <ArrowLeft size={18} className="text-foreground" />
         </button>
-        <button onClick={() => { setLiked(!liked); if(!liked) toast(`${name} saved to favourites ❤️`, "#EF4444"); }} className="absolute top-4 right-5 w-10 h-10 rounded-full bg-[rgba(15,17,21,0.6)] backdrop-blur-sm flex items-center justify-center active:scale-90 transition-transform">
-          <Heart size={18} fill={liked?"#EF4444":"none"} className={liked?"text-[#EF4444]":"text-white"} />
+        <button onClick={() => { setLiked(!liked); if(!liked) toast(`${name} saved to favourites ❤️`, "#EF4444"); }} className="absolute top-4 right-5 w-10 h-10 rounded-full bg-[rgba(255,255,255,0.85)] backdrop-blur-sm flex items-center justify-center active:scale-90 transition-transform">
+          <Heart size={18} fill={liked?"#EF4444":"none"} className={liked?"text-[#EF4444]":"text-foreground"} />
         </button>
       </div>
 
       <div className="flex flex-col gap-5 pt-5">
         <div className="flex items-start justify-between">
           <div>
-            <h2 className="text-xl font-bold text-white" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>{name}</h2>
-            <p className="text-[#A5A9B5] text-sm mt-0.5">{service.description ?? subtitle}</p>
+            <h2 className="text-xl font-bold text-foreground" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>{name}</h2>
+            <p className="text-muted-foreground text-sm mt-0.5">{service.description ?? subtitle}</p>
           </div>
           <div className="text-right">
-            <p className="text-2xl font-bold text-white">{price}</p>
-            <p className="text-[#A5A9B5] text-xs">{service.priceType ?? 'per visit'}</p>
+            <p className="text-2xl font-bold text-foreground">{price}</p>
+            <p className="text-muted-foreground text-xs">{service.priceType ?? 'per visit'}</p>
           </div>
         </div>
 
         <div className="grid grid-cols-3 gap-3">
           {[
             { label:"Rating", value:rating, color:"#F59E0B" },
-            { label:"Category", value:service.category?.name ?? '—', color:"#586CFF" },
-            { label:"Duration", value:service.duration ? `${service.duration}m` : '—', color:"#22C55E" },
+            { label:"Category", value:service.category?.name ?? '—', color:"#7456D0" },
+            { label:"Duration", value:service.duration ? `${service.duration}m` : '—', color:"#5BE7C4" },
           ].map(({ label, value, color }) => (
-            <div key={label} className="bg-[#20242D] rounded-xl p-3 text-center">
+            <div key={label} className="bg-muted rounded-xl p-3 text-center">
               <p className="font-bold text-base" style={{ color }}>{value}</p>
-              <p className="text-[#A5A9B5] text-xs mt-0.5">{label}</p>
+              <p className="text-muted-foreground text-xs mt-0.5">{label}</p>
             </div>
           ))}
         </div>
 
         {helperInfoAvailable ? (
-          <div className="bg-[#161920] border border-[#222733] rounded-2xl p-4">
-            <h3 className="font-bold text-white mb-2" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>Helper</h3>
+          <div className="bg-card border border-border rounded-2xl p-4">
+            <h3 className="font-bold text-foreground mb-2" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>Helper</h3>
             <div className="flex items-center justify-between gap-3">
               <div>
-                <p className="text-white font-semibold">{helperName || 'Helper details available'}</p>
-                <p className="text-[#A5A9B5] text-sm">{service.category?.name ?? 'Service'} provider</p>
+                <p className="text-foreground font-semibold">{helperName || 'Helper details available'}</p>
+                <p className="text-muted-foreground text-sm">{service.category?.name ?? 'Service'} provider</p>
               </div>
               {typeof service.helper?.rating === 'number' && (
                 <div className="flex items-center gap-1 text-[#F59E0B] text-sm font-semibold">
@@ -846,19 +907,19 @@ function DetailScreen({ providerId, onBack, onBook, toast }: { providerId: strin
             </div>
           </div>
         ) : (
-          <div className="bg-[#161920] border border-[#222733] rounded-2xl p-4">
-            <h3 className="font-bold text-white mb-1" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>Helper information unavailable</h3>
-            <p className="text-[#A5A9B5] text-sm">This service is currently missing helper details.</p>
+          <div className="bg-card border border-border rounded-2xl p-4">
+            <h3 className="font-bold text-foreground mb-1" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>Helper information unavailable</h3>
+            <p className="text-muted-foreground text-sm">This service is currently missing helper details.</p>
           </div>
         )}
 
-        <div className="bg-[#161920] border border-[#222733] rounded-2xl p-4">
-          <h3 className="font-bold text-white mb-2" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>About</h3>
-          <p className="text-[#A5A9B5] text-sm leading-relaxed">{description}</p>
+        <div className="bg-card border border-border rounded-2xl p-4">
+          <h3 className="font-bold text-foreground mb-2" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>About</h3>
+          <p className="text-muted-foreground text-sm leading-relaxed">{description}</p>
         </div>
 
         <div className="mt-2">
-          <button onClick={onBook} className="w-full h-12 rounded-2xl font-bold text-white flex items-center justify-center gap-2 active:opacity-80 transition-opacity" style={{ background:"linear-gradient(135deg,#586CFF 0%,#7E57FF 100%)" }}>
+          <button onClick={onBook} className="w-full h-12 rounded-2xl font-bold text-white flex items-center justify-center gap-2 active:opacity-80 transition-opacity" style={{ background:"linear-gradient(135deg,#7456D0 0%,#6648C2 100%)" }}>
             Book Now
           </button>
         </div>
@@ -913,7 +974,7 @@ function BookingScreen({
   }, [addresses, selectedAddressId]);
 
   const applyPromo = () => {
-    if (promoInput.trim().toUpperCase() === "FIRST30") { setPromoApplied(true); toast("Promo FIRST30 applied! −₹180 discount added.", "#22C55E"); }
+    if (promoInput.trim().toUpperCase() === "FIRST30") { setPromoApplied(true); toast("Promo FIRST30 applied! −₹180 discount added.", "#5BE7C4"); }
     else toast("Invalid promo code. Try FIRST30.", "#EF4444");
   };
 
@@ -973,89 +1034,89 @@ function BookingScreen({
   return (
     <div className="flex flex-col gap-5 pb-4 animate-fade-in">
       <div className="flex items-center gap-4 pt-2">
-        <button onClick={onBack} className="w-10 h-10 rounded-full bg-[#20242D] flex items-center justify-center active:scale-90 transition-transform">
-          <ArrowLeft size={18} className="text-white" />
+        <button onClick={onBack} className="w-10 h-10 rounded-full bg-muted flex items-center justify-center active:scale-90 transition-transform">
+          <ArrowLeft size={18} className="text-foreground" />
         </button>
-        <h2 className="font-bold text-white text-lg" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>Book a Helper</h2>
+        <h2 className="font-bold text-foreground text-lg" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>Book a Helper</h2>
       </div>
 
       {/* Date */}
       <div>
-        <h3 className="font-bold text-white mb-3" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>Select Date</h3>
+        <h3 className="font-bold text-foreground mb-3" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>Select Date</h3>
         <div className="flex gap-2 overflow-x-auto pb-1" style={{ scrollbarWidth:"none" }}>
           {dates.map((d) => (
-            <button key={d} onClick={() => setSelectedDate(d)} className={`shrink-0 px-4 py-2.5 rounded-xl text-sm font-semibold transition-colors ${selectedDate===d?"bg-[#586CFF] text-white":"bg-[#20242D] text-[#A5A9B5] hover:text-white"}`}>{d}</button>
+            <button key={d} onClick={() => setSelectedDate(d)} className={`shrink-0 px-4 py-2.5 rounded-xl text-sm font-semibold transition-colors ${selectedDate===d?"bg-primary text-white":"bg-muted text-muted-foreground hover:text-foreground"}`}>{d}</button>
           ))}
         </div>
       </div>
 
       {/* Time */}
       <div>
-        <h3 className="font-bold text-white mb-3" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>Select Time</h3>
+        <h3 className="font-bold text-foreground mb-3" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>Select Time</h3>
         <div className="grid grid-cols-3 gap-2">
           {times.map((t) => (
-            <button key={t} onClick={() => setSelectedTime(t)} className={`py-2.5 rounded-xl text-sm font-semibold transition-colors ${selectedTime===t?"bg-[#586CFF] text-white":"bg-[#20242D] text-[#A5A9B5] hover:text-white"}`}>{t}</button>
+            <button key={t} onClick={() => setSelectedTime(t)} className={`py-2.5 rounded-xl text-sm font-semibold transition-colors ${selectedTime===t?"bg-primary text-white":"bg-muted text-muted-foreground hover:text-foreground"}`}>{t}</button>
           ))}
         </div>
       </div>
 
       {/* Address */}
-      <div className="bg-[#161920] border border-[#222733] rounded-2xl p-4">
+      <div className="bg-card border border-border rounded-2xl p-4">
         <div className="flex items-center justify-between mb-2">
-          <h3 className="font-bold text-white" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>Address</h3>
+          <h3 className="font-bold text-foreground" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>Address</h3>
           {addresses.length > 0 && (
-            <button onClick={() => setShowAddressPicker(true)} className="text-[#586CFF] text-sm font-semibold">Change</button>
+            <button onClick={() => setShowAddressPicker(true)} className="text-primary text-sm font-semibold">Change</button>
           )}
         </div>
         {addressesLoading ? (
           <div className="space-y-2">
-            <div className="h-4 bg-[#20242D] rounded w-3/4 animate-pulse" />
-            <div className="h-4 bg-[#20242D] rounded w-1/2 animate-pulse" />
+            <div className="h-4 bg-muted rounded w-3/4 animate-pulse" />
+            <div className="h-4 bg-muted rounded w-1/2 animate-pulse" />
           </div>
         ) : addressesError && addresses.length === 0 ? (
           <div>
-            <p className="text-[#EF4444] text-sm mb-2">{addressesError}</p>
-            <button onClick={refetch} className="text-[#586CFF] text-sm font-semibold">Retry</button>
+            <p className="text-destructive text-sm mb-2">{addressesError}</p>
+            <button onClick={refetch} className="text-primary text-sm font-semibold">Retry</button>
           </div>
         ) : addresses.length === 0 ? (
           <div>
-            <p className="text-[#A5A9B5] text-sm mb-2">No saved addresses</p>
-            <button onClick={() => onNavigate("addresses")} className="text-[#586CFF] text-sm font-semibold">Add Address</button>
+            <p className="text-muted-foreground text-sm mb-2">No saved addresses</p>
+            <button onClick={() => onNavigate("addresses")} className="text-primary text-sm font-semibold">Add Address</button>
           </div>
         ) : (
           <div className="flex items-start gap-2">
-            <MapPin size={16} className="text-[#586CFF] mt-0.5 shrink-0" />
-            <p className="text-[#A5A9B5] text-sm">{formatAddress(selectedAddress) || "Select an address"}</p>
+            <MapPin size={16} className="text-primary mt-0.5 shrink-0" />
+            <p className="text-muted-foreground text-sm">{formatAddress(selectedAddress) || "Select an address"}</p>
           </div>
         )}
       </div>
 
       {/* Promo code */}
-      <div className="bg-[#161920] border border-[#222733] rounded-2xl p-4 flex gap-2">
+      <div className="bg-card border border-border rounded-2xl p-4 flex gap-2">
         <input
-          className="flex-1 bg-[#20242D] rounded-xl px-3 py-2.5 text-sm text-white outline-none placeholder:text-[#A5A9B5]"
+          className="flex-1 bg-muted rounded-xl px-3 py-2.5 text-sm text-foreground outline-none placeholder:text-muted-foreground"
           placeholder="Promo code (try FIRST30)"
           value={promoInput}
           onChange={(e) => setPromoInput(e.target.value)}
           disabled={promoApplied}
         />
-        <button onClick={applyPromo} disabled={promoApplied} className={`px-4 py-2.5 rounded-xl text-sm font-bold transition-colors ${promoApplied?"bg-[#22C55E] text-white":"bg-[#586CFF] text-white active:opacity-80"}`}>
+        <button onClick={applyPromo} disabled={promoApplied} className={`px-4 py-2.5 rounded-xl text-sm font-bold transition-colors ${promoApplied?"bg-[#5BE7C4] text-white":"bg-primary text-white active:opacity-80"}`}>
           {promoApplied ? "Applied ✓" : "Apply"}
         </button>
       </div>
 
       {/* Price summary (display only — actual booking amount set by backend) */}
-      <div className="bg-[#161920] border border-[#222733] rounded-2xl p-4 flex flex-col gap-3">
-        <h3 className="font-bold text-white" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>Estimated Summary</h3>
+      <div className="bg-card border border-border rounded-2xl p-4 flex flex-col gap-3">
+        <h3 className="font-bold text-foreground" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>Estimated Summary</h3>
         {serviceLoading ? (
           <div className="space-y-2">
-            <div className="h-4 bg-[#20242D] rounded w-3/4 animate-pulse" />
-            <div className="h-4 bg-[#20242D] rounded w-1/2 animate-pulse" />
+            <div className="h-4 bg-muted rounded w-3/4 animate-pulse" />
+            <div className="h-4 bg-muted rounded w-1/2 animate-pulse" />
           </div>
         ) : serviceError ? (
           <div>
-            <p className="text-[#EF4444] text-sm mb-2">{serviceError}</p>
-            <button onClick={refetchService} className="text-[#586CFF] text-sm font-semibold">Retry</button>
+            <p className="text-destructive text-sm mb-2">{serviceError}</p>
+            <button onClick={refetchService} className="text-primary text-sm font-semibold">Retry</button>
           </div>
         ) : servicePrice > 0 ? (
           <>
@@ -1065,18 +1126,18 @@ function BookingScreen({
               ...(promoApplied ? [{ label:"Discount (FIRST30)", value:"−₹180", green:true }] : []),
             ].map(({ label, value, green }) => (
               <div key={label} className="flex justify-between text-sm">
-                <span className="text-[#A5A9B5]">{label}</span>
-                <span className={green?"text-[#22C55E] font-semibold":"text-white"}>{value}</span>
+                <span className="text-muted-foreground">{label}</span>
+                <span className={green?"text-[#5BE7C4] font-semibold":"text-foreground"}>{value}</span>
               </div>
             ))}
-            <div className="border-t border-[#222733] pt-3 flex justify-between">
-              <span className="font-bold text-white">Estimated Total</span>
-              <span className="font-bold text-white text-lg">₹{displayTotal.toLocaleString()}</span>
+            <div className="border-t border-border pt-3 flex justify-between">
+              <span className="font-bold text-foreground">Estimated Total</span>
+              <span className="font-bold text-foreground text-lg">₹{displayTotal.toLocaleString()}</span>
             </div>
-            <p className="text-[#A5A9B5] text-[10px] mt-1">Final amount determined by service pricing at booking time.</p>
+            <p className="text-muted-foreground text-[10px] mt-1">Final amount determined by service pricing at booking time.</p>
           </>
         ) : (
-          <p className="text-[#A5A9B5] text-sm">Price information unavailable</p>
+          <p className="text-muted-foreground text-sm">Price information unavailable</p>
         )}
       </div>
 
@@ -1085,7 +1146,7 @@ function BookingScreen({
         onClick={handleConfirm}
         disabled={isSubmitting || addressesLoading}
         className="w-full h-14 rounded-2xl font-bold text-white text-base flex items-center justify-center gap-2 active:opacity-80 transition-opacity disabled:opacity-60"
-        style={{ background:"linear-gradient(135deg,#586CFF 0%,#7E57FF 100%)" }}
+        style={{ background:"linear-gradient(135deg,#7456D0 0%,#6648C2 100%)" }}
       >
         <CheckCircle2 size={20} />
         {isSubmitting ? "Confirming…" : "Confirm Booking"}
@@ -1109,12 +1170,12 @@ function BookingAddressPickerModal({ addresses, selectedAddressId, onSelect, onC
   useEffect(() => { setTempId(selectedAddressId); }, [selectedAddressId]);
 
   return (
-    <div className="absolute inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm px-5 pb-8">
-      <div className="bg-[#161920] border border-[#222733] rounded-3xl p-5 w-full max-h-[70vh] flex flex-col">
+    <div className="absolute inset-0 z-50 flex items-end justify-center bg-black/40 backdrop-blur-sm px-5 pb-8">
+      <div className="bg-card border border-border rounded-3xl p-5 w-full max-h-[70vh] flex flex-col shadow-xl">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-bold text-white" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>Select Address</h2>
-          <button onClick={onClose} className="w-9 h-9 rounded-full bg-[#20242D] flex items-center justify-center active:scale-90 transition-transform">
-            <X size={16} className="text-white" />
+          <h2 className="text-xl font-bold text-foreground" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>Select Address</h2>
+          <button onClick={onClose} className="w-9 h-9 rounded-full bg-muted flex items-center justify-center active:scale-90 transition-transform">
+            <X size={16} className="text-foreground" />
           </button>
         </div>
         <div className="flex flex-col gap-3 overflow-y-auto flex-1">
@@ -1124,24 +1185,24 @@ function BookingAddressPickerModal({ addresses, selectedAddressId, onSelect, onC
               <button
                 key={addr.id}
                 onClick={() => setTempId(addr.id)}
-                className={`text-left rounded-2xl p-4 border transition-colors ${isSelected ? "border-[#586CFF] bg-[rgba(88,108,255,0.08)]" : "border-transparent bg-[#20242D]"}`}
+                className={`text-left rounded-2xl p-4 border transition-colors ${isSelected ? "border-primary bg-primary-soft" : "border-border bg-muted"}`}
               >
                 <div className="flex items-center gap-2 mb-1">
-                  <MapPin size={14} className={`shrink-0 ${isSelected ? "text-[#586CFF]" : "text-[#A5A9B5]"}`} />
-                  <span className="font-bold text-white text-sm">{addr.label || "Address"}</span>
+                  <MapPin size={14} className={`shrink-0 ${isSelected ? "text-primary" : "text-muted-foreground"}`} />
+                  <span className="font-bold text-foreground text-sm">{addr.label || "Address"}</span>
                   {addr.isDefault && (
                     <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[rgba(245,158,11,0.16)] text-[#FBBF24]">Default</span>
                   )}
                 </div>
-                <p className="text-[#A5A9B5] text-sm">{addr.houseNo}, {addr.street}</p>
-                <p className="text-[#A5A9B5] text-sm">{addr.city}, {addr.state}, {addr.country} - {addr.postalCode}</p>
+                <p className="text-muted-foreground text-sm">{addr.houseNo}, {addr.street}</p>
+                <p className="text-muted-foreground text-sm">{addr.city}, {addr.state}, {addr.country} - {addr.postalCode}</p>
               </button>
             );
           })}
         </div>
         <div className="flex gap-3 mt-4">
-          <button onClick={onClose} className="flex-1 h-12 rounded-2xl bg-[#20242D] text-white font-bold">Cancel</button>
-          <button onClick={() => onConfirm(tempId)} disabled={!tempId} className="flex-1 h-12 rounded-2xl font-bold text-white disabled:opacity-70" style={{ background:"linear-gradient(135deg,#586CFF 0%,#7E57FF 100%)" }}>Apply</button>
+          <button onClick={onClose} className="flex-1 h-12 rounded-2xl bg-muted text-foreground font-bold">Cancel</button>
+          <button onClick={() => onConfirm(tempId)} disabled={!tempId} className="flex-1 h-12 rounded-2xl font-bold text-white disabled:opacity-70" style={{ background:"linear-gradient(135deg,#7456D0 0%,#6648C2 100%)" }}>Apply</button>
         </div>
       </div>
     </div>
@@ -1248,81 +1309,81 @@ function AddressFormModal({
     await onSubmit(toAddressPayload(form));
   };
 
-  const fieldClass = "w-full rounded-xl border border-[#222733] bg-[#20242D] px-3 py-2.5 text-sm text-white outline-none placeholder:text-[#A5A9B5] focus:border-[#586CFF]";
+  const fieldClass = "w-full rounded-xl border border-border bg-muted px-3 py-2.5 text-sm text-foreground outline-none placeholder:text-muted-foreground focus:border-primary";
 
   return (
-    <div className="absolute inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm px-5 pb-8">
-      <div className="bg-[#161920] border border-[#222733] rounded-3xl p-5 w-full max-h-[88vh] overflow-y-auto">
+    <div className="absolute inset-0 z-50 flex items-end justify-center bg-black/40 backdrop-blur-sm px-5 pb-8">
+      <div className="bg-card border border-border rounded-3xl p-5 w-full max-h-[88vh] overflow-y-auto shadow-xl">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-bold text-white" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>{initialAddress ? "Edit Address" : "Add Address"}</h2>
-          <button onClick={onClose} className="w-9 h-9 rounded-full bg-[#20242D] flex items-center justify-center active:scale-90 transition-transform">
-            <X size={16} className="text-white" />
+          <h2 className="text-xl font-bold text-foreground" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>{initialAddress ? "Edit Address" : "Add Address"}</h2>
+          <button onClick={onClose} className="w-9 h-9 rounded-full bg-muted flex items-center justify-center active:scale-90 transition-transform">
+            <X size={16} className="text-foreground" />
           </button>
         </div>
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-3">
           <div>
-            <label className="block text-xs font-semibold uppercase tracking-[0.08em] text-[#A5A9B5] mb-1.5">Label</label>
+            <label className="block text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground mb-1.5">Label</label>
             <input value={form.label} onChange={(e) => updateField("label", e.target.value)} placeholder="Home, Office, etc." className={fieldClass} />
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-semibold uppercase tracking-[0.08em] text-[#A5A9B5] mb-1.5">House No <span className="text-[#EF4444]">*</span></label>
+              <label className="block text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground mb-1.5">House No <span className="text-destructive">*</span></label>
               <input value={form.houseNo} onChange={(e) => updateField("houseNo", e.target.value)} className={fieldClass} required />
             </div>
             <div>
-              <label className="block text-xs font-semibold uppercase tracking-[0.08em] text-[#A5A9B5] mb-1.5">Postal Code <span className="text-[#EF4444]">*</span></label>
+              <label className="block text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground mb-1.5">Postal Code <span className="text-destructive">*</span></label>
               <input value={form.postalCode} onChange={(e) => updateField("postalCode", e.target.value)} className={fieldClass} required />
             </div>
           </div>
 
           <div>
-            <label className="block text-xs font-semibold uppercase tracking-[0.08em] text-[#A5A9B5] mb-1.5">Street <span className="text-[#EF4444]">*</span></label>
+            <label className="block text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground mb-1.5">Street <span className="text-destructive">*</span></label>
             <input value={form.street} onChange={(e) => updateField("street", e.target.value)} className={fieldClass} required />
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-semibold uppercase tracking-[0.08em] text-[#A5A9B5] mb-1.5">City <span className="text-[#EF4444]">*</span></label>
+              <label className="block text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground mb-1.5">City <span className="text-destructive">*</span></label>
               <input value={form.city} onChange={(e) => updateField("city", e.target.value)} className={fieldClass} required />
             </div>
             <div>
-              <label className="block text-xs font-semibold uppercase tracking-[0.08em] text-[#A5A9B5] mb-1.5">State <span className="text-[#EF4444]">*</span></label>
+              <label className="block text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground mb-1.5">State <span className="text-destructive">*</span></label>
               <input value={form.state} onChange={(e) => updateField("state", e.target.value)} className={fieldClass} required />
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-semibold uppercase tracking-[0.08em] text-[#A5A9B5] mb-1.5">Country <span className="text-[#EF4444]">*</span></label>
+              <label className="block text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground mb-1.5">Country <span className="text-destructive">*</span></label>
               <input value={form.country} onChange={(e) => updateField("country", e.target.value)} className={fieldClass} required />
             </div>
             <div>
-              <label className="block text-xs font-semibold uppercase tracking-[0.08em] text-[#A5A9B5] mb-1.5">Latitude</label>
+              <label className="block text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground mb-1.5">Latitude</label>
               <input value={form.latitude} onChange={(e) => updateField("latitude", e.target.value)} placeholder="Optional" className={fieldClass} />
             </div>
           </div>
 
           <div>
-            <label className="block text-xs font-semibold uppercase tracking-[0.08em] text-[#A5A9B5] mb-1.5">Longitude</label>
+            <label className="block text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground mb-1.5">Longitude</label>
             <input value={form.longitude} onChange={(e) => updateField("longitude", e.target.value)} placeholder="Optional" className={fieldClass} />
           </div>
 
-          <label className="flex items-center gap-2 text-sm text-[#A5A9B5]">
-            <input type="checkbox" checked={form.isDefault} onChange={(e) => updateField("isDefault", e.target.checked)} className="h-4 w-4 rounded border-[rgba(255,255,255,0.12)] bg-[#20242D] text-[#586CFF]" />
+          <label className="flex items-center gap-2 text-sm text-muted-foreground">
+            <input type="checkbox" checked={form.isDefault} onChange={(e) => updateField("isDefault", e.target.checked)} className="h-4 w-4 rounded border-border bg-muted text-primary" />
             Set as default address
           </label>
 
           {(localError || submitError) && (
-            <div className="rounded-xl border border-[rgba(239,68,68,0.35)] bg-[rgba(239,68,68,0.08)] px-3 py-2 text-sm text-[#FCA5A5]">
+            <div className="rounded-xl border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
               {localError ?? submitError}
             </div>
           )}
 
           <div className="flex gap-3 pt-2">
-            <button type="button" onClick={onClose} className="flex-1 h-12 rounded-2xl bg-[#20242D] text-white font-bold">Cancel</button>
-            <button type="submit" disabled={isSubmitting} className="flex-1 h-12 rounded-2xl font-bold text-white disabled:opacity-70" style={{ background:"linear-gradient(135deg,#586CFF 0%,#7E57FF 100%)" }}>
+            <button type="button" onClick={onClose} className="flex-1 h-12 rounded-2xl bg-muted text-foreground font-bold">Cancel</button>
+            <button type="submit" disabled={isSubmitting} className="flex-1 h-12 rounded-2xl font-bold text-white disabled:opacity-70" style={{ background:"linear-gradient(135deg,#7456D0 0%,#6648C2 100%)" }}>
               {isSubmitting ? "Saving..." : initialAddress ? "Save Changes" : "Save Address"}
             </button>
           </div>
@@ -1360,10 +1421,10 @@ function AddressScreen({ onBack, toast }: { onBack: () => void; toast: (msg: str
     try {
       if (editingAddress) {
         await updateAddress(editingAddress.id, payload);
-        toast("Address updated successfully.", "#22C55E");
+        toast("Address updated successfully.", "#5BE7C4");
       } else {
         await createAddress(payload);
-        toast("Address saved successfully.", "#22C55E");
+        toast("Address saved successfully.", "#5BE7C4");
       }
       setIsFormOpen(false);
       setEditingAddress(null);
@@ -1387,7 +1448,7 @@ function AddressScreen({ onBack, toast }: { onBack: () => void; toast: (msg: str
   const handleSetAsDefault = async (id: string) => {
     try {
       await updateAddress(id, { isDefault: true });
-      toast("Default address updated.", "#586CFF");
+      toast("Default address updated.", "#7456D0");
     } catch (err) {
       toast(err instanceof Error ? err.message : "Unable to update default address.", "#EF4444");
     }
@@ -1397,14 +1458,14 @@ function AddressScreen({ onBack, toast }: { onBack: () => void; toast: (msg: str
     return (
       <div className="flex flex-col gap-4 pb-4 pt-2">
         <div className="flex items-center gap-4">
-          <button onClick={onBack} className="w-10 h-10 rounded-full bg-[#20242D] flex items-center justify-center active:scale-90 transition-transform">
-            <ArrowLeft size={18} className="text-white" />
+          <button onClick={onBack} className="w-10 h-10 rounded-full bg-muted flex items-center justify-center active:scale-90 transition-transform">
+            <ArrowLeft size={18} className="text-foreground" />
           </button>
-          <h2 className="font-bold text-white text-lg" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>Saved Addresses</h2>
+          <h2 className="font-bold text-foreground text-lg" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>Saved Addresses</h2>
         </div>
         <div className="space-y-3">
           {[1,2,3].map((item) => (
-            <div key={item} className="h-28 rounded-2xl bg-[#161920] animate-pulse" />
+            <div key={item} className="h-28 rounded-2xl bg-muted animate-pulse" />
           ))}
         </div>
       </div>
@@ -1415,14 +1476,14 @@ function AddressScreen({ onBack, toast }: { onBack: () => void; toast: (msg: str
     return (
       <div className="flex flex-col gap-4 pb-4 pt-2">
         <div className="flex items-center gap-4">
-          <button onClick={onBack} className="w-10 h-10 rounded-full bg-[#20242D] flex items-center justify-center active:scale-90 transition-transform">
-            <ArrowLeft size={18} className="text-white" />
+          <button onClick={onBack} className="w-10 h-10 rounded-full bg-muted flex items-center justify-center active:scale-90 transition-transform">
+            <ArrowLeft size={18} className="text-foreground" />
           </button>
-          <h2 className="font-bold text-white text-lg" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>Saved Addresses</h2>
+          <h2 className="font-bold text-foreground text-lg" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>Saved Addresses</h2>
         </div>
-        <div className="rounded-2xl border border-[rgba(239,68,68,0.35)] bg-[rgba(239,68,68,0.08)] p-4 text-center">
-          <p className="text-[#FCA5A5] text-sm">{error}</p>
-          <button onClick={() => refetch()} className="mt-3 text-[#586CFF] text-sm font-semibold">Retry</button>
+        <div className="rounded-2xl border border-destructive/30 bg-destructive/10 p-4 text-center">
+          <p className="text-destructive text-sm">{error}</p>
+          <button onClick={() => refetch()} className="mt-3 text-primary text-sm font-semibold">Retry</button>
         </div>
       </div>
     );
@@ -1432,38 +1493,38 @@ function AddressScreen({ onBack, toast }: { onBack: () => void; toast: (msg: str
     <div className="flex flex-col gap-4 pb-4 pt-2 animate-fade-in">
       <div className="flex items-center justify-between gap-4">
         <div className="flex items-center gap-4">
-          <button onClick={onBack} className="w-10 h-10 rounded-full bg-[#20242D] flex items-center justify-center active:scale-90 transition-transform">
-            <ArrowLeft size={18} className="text-white" />
+          <button onClick={onBack} className="w-10 h-10 rounded-full bg-muted flex items-center justify-center active:scale-90 transition-transform">
+            <ArrowLeft size={18} className="text-foreground" />
           </button>
-          <h2 className="font-bold text-white text-lg" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>Saved Addresses</h2>
+          <h2 className="font-bold text-foreground text-lg" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>Saved Addresses</h2>
         </div>
-        <button onClick={openCreateForm} className="flex items-center gap-2 rounded-xl bg-[#586CFF] px-3 py-2 text-xs font-bold text-white active:scale-95 transition-transform">
+        <button onClick={openCreateForm} className="flex items-center gap-2 rounded-xl bg-primary px-3 py-2 text-xs font-bold text-white active:scale-95 transition-transform">
           <Plus size={14} /> Add
         </button>
       </div>
 
       {error && (
-        <div className="rounded-xl border border-[rgba(239,68,68,0.35)] bg-[rgba(239,68,68,0.08)] px-3 py-2 text-sm text-[#FCA5A5] flex items-center justify-between gap-3">
+        <div className="rounded-xl border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive flex items-center justify-between gap-3">
           <span>{error}</span>
-          <button onClick={() => refetch()} className="text-[#586CFF] font-semibold">Retry</button>
+          <button onClick={() => refetch()} className="text-primary font-semibold">Retry</button>
         </div>
       )}
 
       {addresses.length === 0 ? (
         <div className="text-center py-12">
-          <MapPin size={40} className="text-[#A5A9B5] mx-auto mb-3 opacity-30" />
-          <p className="text-[#A5A9B5]">No saved addresses yet</p>
-          <button onClick={openCreateForm} className="mt-3 text-[#586CFF] text-sm font-semibold">Add your first address</button>
+          <MapPin size={40} className="text-muted-foreground mx-auto mb-3 opacity-30" />
+          <p className="text-muted-foreground">No saved addresses yet</p>
+          <button onClick={openCreateForm} className="mt-3 text-primary text-sm font-semibold">Add your first address</button>
         </div>
       ) : (
         <div className="flex flex-col gap-3">
           {addresses.map((address) => (
-            <div key={address.id} className="bg-[#161920] border border-[#222733] rounded-2xl p-4">
+            <div key={address.id} className="bg-card border border-border rounded-2xl p-4">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2 mb-1">
-                    <MapPin size={14} className="text-[#586CFF] shrink-0" />
-                    <span className="font-bold text-white text-sm">
+                    <MapPin size={14} className="text-primary shrink-0" />
+                    <span className="font-bold text-foreground text-sm">
                       {address.label || "Address"}
                     </span>
                     {address.isDefault && (
@@ -1472,14 +1533,14 @@ function AddressScreen({ onBack, toast }: { onBack: () => void; toast: (msg: str
                       </span>
                     )}
                   </div>
-                  <p className="text-[#A5A9B5] text-sm leading-relaxed">
+                  <p className="text-muted-foreground text-sm leading-relaxed">
                     {address.houseNo}, {address.street}
                   </p>
-                  <p className="text-[#A5A9B5] text-sm leading-relaxed">
+                  <p className="text-muted-foreground text-sm leading-relaxed">
                     {address.city}, {address.state}, {address.country} - {address.postalCode}
                   </p>
                   {(address.latitude !== null && address.latitude !== undefined) || (address.longitude !== null && address.longitude !== undefined) ? (
-                    <p className="text-[#A5A9B5] text-[11px] mt-1">
+                    <p className="text-muted-foreground text-[11px] mt-1">
                       {address.latitude != null ? `Lat: ${address.latitude}` : ""}
                       {address.latitude != null && address.longitude != null ? " • " : ""}
                       {address.longitude != null ? `Lng: ${address.longitude}` : ""}
@@ -1491,14 +1552,14 @@ function AddressScreen({ onBack, toast }: { onBack: () => void; toast: (msg: str
 
               <div className="mt-4 flex flex-wrap gap-2">
                 {!address.isDefault && (
-                  <button onClick={() => handleSetAsDefault(address.id)} className="rounded-xl bg-[rgba(88,108,255,0.12)] px-3 py-1.5 text-xs font-semibold text-[#586CFF] active:scale-95 transition-transform">
+                  <button onClick={() => handleSetAsDefault(address.id)} className="rounded-xl bg-primary-soft px-3 py-1.5 text-xs font-semibold text-primary active:scale-95 transition-transform">
                     Set as default
                   </button>
                 )}
-                <button onClick={() => openEditForm(address)} className="rounded-xl bg-[#20242D] px-3 py-1.5 text-xs font-semibold text-white active:scale-95 transition-transform">
+                <button onClick={() => openEditForm(address)} className="rounded-xl bg-muted px-3 py-1.5 text-xs font-semibold text-foreground active:scale-95 transition-transform">
                   Edit
                 </button>
-                <button onClick={() => handleDelete(address.id)} className="rounded-xl bg-[rgba(239,68,68,0.12)] px-3 py-1.5 text-xs font-semibold text-[#FCA5A5] active:scale-95 transition-transform">
+                <button onClick={() => handleDelete(address.id)} className="rounded-xl bg-destructive/10 px-3 py-1.5 text-xs font-semibold text-destructive active:scale-95 transition-transform">
                   Delete
                 </button>
               </div>
@@ -1552,14 +1613,14 @@ function BookingCard({
   const isPending = booking.status === "PENDING";
 
   return (
-    <div className="bg-[#161920] border border-[#222733] rounded-2xl p-4">
+    <div className="bg-card border border-border rounded-2xl p-4">
       {/* Header row */}
       <div className="flex items-start justify-between gap-2 mb-3">
         <div className="flex-1 min-w-0">
-          <p className="font-bold text-white text-sm leading-snug truncate" style={{ fontFamily: "'Plus Jakarta Sans',sans-serif" }}>
+          <p className="font-bold text-foreground text-sm leading-snug truncate" style={{ fontFamily: "'Plus Jakarta Sans',sans-serif" }}>
             {booking.service.title}
           </p>
-          <p className="text-[#A5A9B5] text-xs mt-0.5 truncate">
+          <p className="text-muted-foreground text-xs mt-0.5 truncate">
             {helperName || "Helper"}
           </p>
         </div>
@@ -1567,35 +1628,35 @@ function BookingCard({
       </div>
 
       {/* Date / time */}
-      <div className="flex items-center gap-1.5 text-xs text-[#A5A9B5] mb-1">
+      <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-1">
         <CalendarCheck size={11} className="shrink-0" />
         <span>{scheduledDisplay}</span>
       </div>
 
       {/* Payment status badge */}
       {booking.payment?.status && (
-        <div className="flex items-center gap-1.5 text-xs text-[#A5A9B5]">
-          <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: booking.payment.status === "SUCCESS" ? "#22C55E" : "#F59E0B" }} />
+        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: booking.payment.status === "SUCCESS" ? "#5BE7C4" : "#F59E0B" }} />
           <span>Payment: {booking.payment.status}</span>
         </div>
       )}
 
       {/* Footer */}
-      <div className="flex items-center justify-between mt-4 pt-3 border-t border-[#222733]">
-        <span className="text-white font-bold">{amountDisplay}</span>
+      <div className="flex items-center justify-between mt-4 pt-3 border-t border-border">
+        <span className="text-foreground font-bold">{amountDisplay}</span>
         <div className="flex gap-2">
           {isPending && (
             <button
               onClick={() => onCancel(booking.id)}
               disabled={isCancelling}
-              className="text-xs font-semibold text-[#EF4444] bg-[rgba(239,68,68,0.1)] px-3 py-1.5 rounded-xl active:scale-95 transition-transform disabled:opacity-50"
+              className="text-xs font-semibold text-destructive bg-destructive/10 px-3 py-1.5 rounded-xl active:scale-95 transition-transform disabled:opacity-50"
             >
               {isCancelling ? "Cancelling…" : "Cancel"}
             </button>
           )}
           <button
             onClick={() => onViewDetails(booking.id)}
-            className="text-xs font-semibold text-white bg-[#20242D] px-3 py-1.5 rounded-xl active:scale-95 transition-transform"
+            className="text-xs font-semibold text-foreground bg-muted px-3 py-1.5 rounded-xl active:scale-95 transition-transform"
           >
             View Details
           </button>
@@ -1607,18 +1668,18 @@ function BookingCard({
 
 function BookingSkeletonCard() {
   return (
-    <div className="bg-[#161920] border border-[#222733] rounded-2xl p-4 flex flex-col gap-3 animate-pulse">
+    <div className="bg-card border border-border rounded-2xl p-4 flex flex-col gap-3 animate-pulse">
       <div className="flex items-start justify-between gap-2">
         <div className="flex-1 flex flex-col gap-2">
-          <div className="h-4 bg-[#20242D] rounded w-3/4" />
-          <div className="h-3 bg-[#20242D] rounded w-1/2" />
+          <div className="h-4 bg-muted rounded w-3/4" />
+          <div className="h-3 bg-muted rounded w-1/2" />
         </div>
-        <div className="h-6 w-16 bg-[#20242D] rounded-full" />
+        <div className="h-6 w-16 bg-muted rounded-full" />
       </div>
-      <div className="h-3 bg-[#20242D] rounded w-2/5" />
-        <div className="flex items-center justify-between pt-3 border-t border-[#222733]">
-          <div className="h-4 bg-[#20242D] rounded w-12" />
-        <div className="h-7 bg-[#20242D] rounded-xl w-24" />
+      <div className="h-3 bg-muted rounded w-2/5" />
+        <div className="flex items-center justify-between pt-3 border-t border-border">
+          <div className="h-4 bg-muted rounded w-12" />
+        <div className="h-7 bg-muted rounded-xl w-24" />
       </div>
     </div>
   );
@@ -1648,18 +1709,18 @@ function BookingsScreen({ onNavigate, onViewDetails, toast }: { onNavigate: (s: 
   return (
     <div className="flex flex-col gap-5 pb-4 animate-fade-in">
       <div className="pt-2">
-        <h2 className="text-xl font-bold text-white" style={{ fontFamily: "'Plus Jakarta Sans',sans-serif" }}>My Bookings</h2>
-        <p className="text-[#A5A9B5] text-sm mt-0.5">Track and manage your service history</p>
+        <h2 className="text-xl font-bold text-foreground" style={{ fontFamily: "'Plus Jakarta Sans',sans-serif" }}>My Bookings</h2>
+        <p className="text-muted-foreground text-sm mt-0.5">Track and manage your service history</p>
       </div>
 
       {/* Tab switcher */}
-      <div className="flex bg-[#20242D] rounded-2xl p-1">
+      <div className="flex bg-muted rounded-2xl p-1">
         {(["upcoming", "past"] as const).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
             className={`flex-1 py-2.5 rounded-xl text-sm font-semibold transition-colors capitalize ${
-              tab === t ? "bg-[#586CFF] text-white" : "text-[#A5A9B5]"
+              tab === t ? "bg-primary text-white" : "text-muted-foreground"
             }`}
           >
             {t}
@@ -1675,24 +1736,24 @@ function BookingsScreen({ onNavigate, onViewDetails, toast }: { onNavigate: (s: 
           ))}
         </div>
       ) : error ? (
-        <div className="rounded-2xl border border-[rgba(239,68,68,0.35)] bg-[rgba(239,68,68,0.08)] p-6 text-center">
-          <CalendarCheck size={36} className="text-[#EF4444] mx-auto mb-3 opacity-60" />
-          <p className="text-[#FCA5A5] text-sm mb-3">{error}</p>
+        <div className="rounded-2xl border border-destructive/30 bg-destructive/10 p-6 text-center">
+          <CalendarCheck size={36} className="text-destructive mx-auto mb-3 opacity-60" />
+          <p className="text-destructive text-sm mb-3">{error}</p>
           <button
             onClick={() => refetch()}
-            className="text-[#586CFF] text-sm font-semibold bg-[rgba(88,108,255,0.12)] px-4 py-2 rounded-xl active:scale-95 transition-transform"
+            className="text-primary text-sm font-semibold bg-primary-soft px-4 py-2 rounded-xl active:scale-95 transition-transform"
           >
             Retry
           </button>
         </div>
       ) : filtered.length === 0 ? (
         <div className="text-center py-12">
-          <CalendarCheck size={48} className="text-[#A5A9B5] mx-auto mb-3 opacity-30" />
-          <p className="text-[#A5A9B5]">No {tab} bookings</p>
+          <CalendarCheck size={48} className="text-muted-foreground mx-auto mb-3 opacity-30" />
+          <p className="text-muted-foreground">No {tab} bookings</p>
           {tab === "upcoming" && (
             <button
               onClick={() => onNavigate("explore")}
-              className="mt-3 bg-[#586CFF] text-white text-sm font-bold px-5 py-2.5 rounded-xl active:scale-95 transition-transform"
+              className="mt-3 bg-primary text-white text-sm font-bold px-5 py-2.5 rounded-xl active:scale-95 transition-transform"
             >
               Book a Service
             </button>
@@ -1719,9 +1780,9 @@ function BookingsScreen({ onNavigate, onViewDetails, toast }: { onNavigate: (s: 
 
 function BookingDetailRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex items-start justify-between gap-4 py-3 border-b border-[#222733] last:border-0">
-      <span className="text-[#A5A9B5] text-sm shrink-0">{label}</span>
-      <span className="text-white text-sm font-semibold text-right break-all">{value}</span>
+    <div className="flex items-start justify-between gap-4 py-3 border-b border-border last:border-0">
+      <span className="text-muted-foreground text-sm shrink-0">{label}</span>
+      <span className="text-foreground text-sm font-semibold text-right break-all">{value}</span>
     </div>
   );
 }
@@ -1808,7 +1869,7 @@ function BookingDetailsScreen({
           order_id: orderResp.orderId,
           name: "Helpers",
           description: booking.service.title,
-          theme: { color: "#586CFF" },
+          theme: { color: "#7456D0" },
           modal: {
             escape: false,
             ondismiss: () => {
@@ -1831,7 +1892,7 @@ function BookingDetailsScreen({
               // We do NOT manually set payment.status = SUCCESS here.
               const refreshed = await bookingsApi.get(bookingId);
               setBooking(refreshed);
-              toast("Payment successful!", "#22C55E");
+              toast("Payment successful!", "#5BE7C4");
               resolve();
             } catch (verifyErr) {
               // Verification failed — do NOT mark as paid.
@@ -1863,21 +1924,21 @@ function BookingDetailsScreen({
       <div className="flex flex-col pb-4">
         {/* Back header */}
         <div className="flex items-center gap-4 pt-2 pb-5">
-          <button onClick={onBack} className="w-10 h-10 rounded-full bg-[#20242D] flex items-center justify-center active:scale-90 transition-transform">
-            <ArrowLeft size={18} className="text-white" />
+          <button onClick={onBack} className="w-10 h-10 rounded-full bg-muted flex items-center justify-center active:scale-90 transition-transform">
+            <ArrowLeft size={18} className="text-foreground" />
           </button>
-          <div className="h-5 bg-[#20242D] rounded w-36 animate-pulse" />
+          <div className="h-5 bg-muted rounded w-36 animate-pulse" />
         </div>
         {/* Skeleton rows */}
-        <div className="bg-[#161920] border border-[#222733] rounded-2xl p-4 flex flex-col gap-1 animate-pulse">
+        <div className="bg-card border border-border rounded-2xl p-4 flex flex-col gap-1 animate-pulse">
           {Array.from({ length: 7 }).map((_, i) => (
-            <div key={i} className="flex justify-between py-3 border-b border-[#222733] last:border-0">
-              <div className="h-4 bg-[#20242D] rounded w-24" />
-              <div className="h-4 bg-[#20242D] rounded w-28" />
+            <div key={i} className="flex justify-between py-3 border-b border-border last:border-0">
+              <div className="h-4 bg-muted rounded w-24" />
+              <div className="h-4 bg-muted rounded w-28" />
             </div>
           ))}
         </div>
-        <div className="h-12 bg-[#20242D] rounded-2xl mt-5 animate-pulse" />
+        <div className="h-12 bg-muted rounded-2xl mt-5 animate-pulse" />
       </div>
     );
   }
@@ -1887,17 +1948,17 @@ function BookingDetailsScreen({
     return (
       <div className="flex flex-col gap-4 pt-2 pb-4">
         <div className="flex items-center gap-4">
-          <button onClick={onBack} className="w-10 h-10 rounded-full bg-[#20242D] flex items-center justify-center active:scale-90 transition-transform">
-            <ArrowLeft size={18} className="text-white" />
+          <button onClick={onBack} className="w-10 h-10 rounded-full bg-muted flex items-center justify-center active:scale-90 transition-transform">
+            <ArrowLeft size={18} className="text-foreground" />
           </button>
-          <h2 className="font-bold text-white text-lg" style={{ fontFamily: "'Plus Jakarta Sans',sans-serif" }}>Booking Details</h2>
+          <h2 className="font-bold text-foreground text-lg" style={{ fontFamily: "'Plus Jakarta Sans',sans-serif" }}>Booking Details</h2>
         </div>
-        <div className="rounded-2xl border border-[rgba(239,68,68,0.35)] bg-[rgba(239,68,68,0.08)] p-6 text-center">
-          <CalendarCheck size={36} className="text-[#EF4444] mx-auto mb-3 opacity-60" />
-          <p className="text-[#FCA5A5] text-sm mb-3">{error}</p>
+        <div className="rounded-2xl border border-destructive/30 bg-destructive/10 p-6 text-center">
+          <CalendarCheck size={36} className="text-destructive mx-auto mb-3 opacity-60" />
+          <p className="text-destructive text-sm mb-3">{error}</p>
           <button
             onClick={fetchBooking}
-            className="text-[#586CFF] text-sm font-semibold bg-[rgba(88,108,255,0.12)] px-4 py-2 rounded-xl active:scale-95 transition-transform"
+            className="text-primary text-sm font-semibold bg-primary-soft px-4 py-2 rounded-xl active:scale-95 transition-transform"
           >
             Retry
           </button>
@@ -1911,15 +1972,15 @@ function BookingDetailsScreen({
     return (
       <div className="flex flex-col gap-4 pt-2 pb-4">
         <div className="flex items-center gap-4">
-          <button onClick={onBack} className="w-10 h-10 rounded-full bg-[#20242D] flex items-center justify-center active:scale-90 transition-transform">
-            <ArrowLeft size={18} className="text-white" />
+          <button onClick={onBack} className="w-10 h-10 rounded-full bg-muted flex items-center justify-center active:scale-90 transition-transform">
+            <ArrowLeft size={18} className="text-foreground" />
           </button>
-          <h2 className="font-bold text-white text-lg" style={{ fontFamily: "'Plus Jakarta Sans',sans-serif" }}>Booking Details</h2>
+          <h2 className="font-bold text-foreground text-lg" style={{ fontFamily: "'Plus Jakarta Sans',sans-serif" }}>Booking Details</h2>
         </div>
         <div className="text-center py-12">
-          <CalendarCheck size={48} className="text-[#A5A9B5] mx-auto mb-3 opacity-30" />
-          <p className="text-[#A5A9B5]">Booking not found.</p>
-          <button onClick={onBack} className="mt-3 text-[#586CFF] text-sm font-semibold">Go back</button>
+          <CalendarCheck size={48} className="text-muted-foreground mx-auto mb-3 opacity-30" />
+          <p className="text-muted-foreground">Booking not found.</p>
+          <button onClick={onBack} className="mt-3 text-primary text-sm font-semibold">Go back</button>
         </div>
       </div>
     );
@@ -1948,20 +2009,20 @@ function BookingDetailsScreen({
     <div className="flex flex-col pb-4 animate-fade-in">
       {/* Header */}
       <div className="flex items-center gap-4 pt-2 pb-5">
-        <button onClick={onBack} className="w-10 h-10 rounded-full bg-[#20242D] flex items-center justify-center active:scale-90 transition-transform">
-          <ArrowLeft size={18} className="text-white" />
+        <button onClick={onBack} className="w-10 h-10 rounded-full bg-muted flex items-center justify-center active:scale-90 transition-transform">
+          <ArrowLeft size={18} className="text-foreground" />
         </button>
         <div className="flex-1 min-w-0">
-          <h2 className="font-bold text-white text-lg truncate" style={{ fontFamily: "'Plus Jakarta Sans',sans-serif" }}>
+          <h2 className="font-bold text-foreground text-lg truncate" style={{ fontFamily: "'Plus Jakarta Sans',sans-serif" }}>
             {booking.service.title}
           </h2>
-          <p className="text-[#A5A9B5] text-xs mt-0.5">Booking details</p>
+          <p className="text-muted-foreground text-xs mt-0.5">Booking details</p>
         </div>
         <BookingStatusPill status={booking.status} />
       </div>
 
       {/* Detail rows */}
-      <div className="bg-[#161920] border border-[#222733] rounded-2xl px-4">
+      <div className="bg-card border border-border rounded-2xl px-4">
         {rows.map(([label, value]) => (
           <BookingDetailRow key={label} label={label} value={value} />
         ))}
@@ -1971,17 +2032,17 @@ function BookingDetailsScreen({
       {/* Show whenever booking is not CANCELLED — payment can be collected
           for PENDING, ACCEPTED, or ONGOING bookings. Hide if cancelled. */}
       {booking.status !== "CANCELLED" && (
-        <div className="mt-4 bg-[#161920] border border-[#222733] rounded-2xl p-4">
+        <div className="mt-4 bg-card border border-border rounded-2xl p-4">
           <div className="flex items-center justify-between mb-3">
-            <span className="text-[#A5A9B5] text-sm font-medium">Payment</span>
-            <span className="text-white font-bold">{amountDisplay}</span>
+            <span className="text-muted-foreground text-sm font-medium">Payment</span>
+            <span className="text-foreground font-bold">{amountDisplay}</span>
           </div>
 
           {isAlreadyPaid ? (
             /* ── Paid state ─────────────────────────────────────────────── */
-            <div className="flex items-center gap-2 justify-center bg-[rgba(34,197,94,0.1)] border border-[rgba(34,197,94,0.3)] rounded-xl px-4 py-3">
-              <CheckCircle2 size={16} className="text-[#22C55E] shrink-0" />
-              <span className="text-[#22C55E] text-sm font-semibold">Paid</span>
+            <div className="flex items-center gap-2 justify-center bg-[rgba(91,231,196,0.1)] border border-[rgba(91,231,196,0.3)] rounded-xl px-4 py-3">
+              <CheckCircle2 size={16} className="text-[#5BE7C4] shrink-0" />
+              <span className="text-[#5BE7C4] text-sm font-semibold">Paid</span>
             </div>
           ) : (
             /* ── Pay Now / paying state ─────────────────────────────────── */
@@ -1990,7 +2051,7 @@ function BookingDetailsScreen({
               onClick={handlePay}
               disabled={isPaying}
               className="w-full h-12 rounded-2xl font-bold text-white flex items-center justify-center gap-2 active:opacity-80 transition-opacity disabled:opacity-60"
-              style={{ background: "linear-gradient(135deg,#22C55E 0%,#16A34A 100%)" }}
+              style={{ background: "linear-gradient(135deg,#5BE7C4 0%,#5BE7C4 100%)" }}
             >
               {isPaying ? (
                 <>
@@ -2005,11 +2066,11 @@ function BookingDetailsScreen({
 
           {/* Verification error — visible after Checkout success but verify fails */}
           {payError && (
-            <div className="mt-3 rounded-xl bg-[rgba(239,68,68,0.1)] border border-[rgba(239,68,68,0.3)] px-4 py-3">
-              <p className="text-[#FCA5A5] text-xs text-center">{payError}</p>
+            <div className="mt-3 rounded-xl bg-destructive/10 border border-destructive/30 px-4 py-3">
+              <p className="text-destructive text-xs text-center">{payError}</p>
               <button
                 onClick={() => { setPayError(null); }}
-                className="mt-2 w-full text-[#586CFF] text-xs font-semibold text-center"
+                className="mt-2 w-full text-primary text-xs font-semibold text-center"
               >
                 Dismiss
               </button>
@@ -2023,7 +2084,7 @@ function BookingDetailsScreen({
         <button
           onClick={handleCancel}
           disabled={isCancelling}
-          className="mt-4 w-full h-12 rounded-2xl font-bold text-[#EF4444] border border-[rgba(239,68,68,0.4)] bg-[rgba(239,68,68,0.08)] flex items-center justify-center gap-2 active:opacity-80 transition-opacity disabled:opacity-50"
+          className="mt-4 w-full h-12 rounded-2xl font-bold text-destructive border border-destructive/30 bg-destructive/10 flex items-center justify-center gap-2 active:opacity-80 transition-opacity disabled:opacity-50"
         >
           {isCancelling ? "Cancelling…" : "Cancel Booking"}
         </button>
@@ -2033,7 +2094,7 @@ function BookingDetailsScreen({
       <button
         onClick={onBack}
         className="mt-3 w-full h-12 rounded-2xl font-bold text-white flex items-center justify-center gap-2 active:opacity-80 transition-opacity"
-        style={{ background: "linear-gradient(135deg,#586CFF 0%,#7E57FF 100%)" }}
+        style={{ background: "linear-gradient(135deg,#7456D0 0%,#6648C2 100%)" }}
       >
         <ArrowLeft size={16} />
         Back to Bookings
@@ -2046,14 +2107,18 @@ function BookingDetailsScreen({
 
 function ProfileScreen({ onNavigate, toast }: { onNavigate: (s: Screen) => void; toast: (msg: string, color?: string) => void }) {
   const { user, logout } = useAuth();
-  const fullName = user ? `${user.firstName} ${user.lastName}`.trim() : "";
+  const firstName = user?.firstName ?? "";
+  const lastName = user?.lastName ?? "";
+  const fullName = `${firstName} ${lastName}`.trim() || "User";
   const initial = fullName ? fullName.charAt(0).toUpperCase() : "?";
+  const email = user?.email ?? "";
+  const isVerified = user?.isVerified ?? false;
   const menuItems = [
     { icon:"📍", label:"Saved Addresses",   action: () => onNavigate("addresses") },
     { icon:"💳", label:"Payment Methods",   action: () => toast("Manage payment methods") },
     { icon:"🔔", label:"Notifications",     action: () => toast("Notifications coming soon") },
     { icon:"🛡️", label:"Privacy & Security",action: () => toast("Privacy settings opening…") },
-    { icon:"💬", label:"Help & Support",    action: () => toast("Connecting to support…", "#22C55E") },
+    { icon:"💬", label:"Help & Support",    action: () => toast("Connecting to support…", "#5BE7C4") },
     { icon:"⭐", label:"Rate the App",      action: () => toast("Thanks for rating Helpers! ⭐⭐⭐⭐⭐", "#F59E0B") },
     { icon:"🚪", label:"Sign Out",          action: handleSignOut },
   ];
@@ -2061,9 +2126,9 @@ function ProfileScreen({ onNavigate, toast }: { onNavigate: (s: Screen) => void;
   const handleSignOut = async () => {
     try {
       await logout();
-      toast("Signed out successfully", "#22C55E");
+      toast("Signed out successfully", "#5BE7C4");
     } catch {
-      toast("Signed out", "#586CFF");
+      toast("Signed out", "#7456D0");
     }
   };
 
@@ -2071,46 +2136,46 @@ function ProfileScreen({ onNavigate, toast }: { onNavigate: (s: Screen) => void;
     <div className="flex flex-col gap-5 pb-4 animate-fade-in">
       <div className="pt-4 flex flex-col items-center gap-3">
         <div className="relative">
-          <div className="w-24 h-24 rounded-full bg-gradient-to-br from-[#586CFF] to-[#7E57FF] flex items-center justify-center text-3xl font-bold text-white">{initial}</div>
-          <button onClick={() => toast("Photo update coming soon!")} className="absolute bottom-0 right-0 w-7 h-7 rounded-full bg-[#586CFF] border-2 border-[#0F1115] flex items-center justify-center active:scale-90 transition-transform">
+          <div className="w-24 h-24 rounded-full bg-gradient-to-br from-[#7456D0] to-[#4FC0E8] flex items-center justify-center text-3xl font-bold text-white">{initial}</div>
+          <button onClick={() => toast("Photo update coming soon!")} className="absolute bottom-0 right-0 w-7 h-7 rounded-full bg-primary border-2 border-background flex items-center justify-center active:scale-90 transition-transform">
             <Plus size={13} className="text-white" />
           </button>
         </div>
         <div className="text-center">
-          <h2 className="text-xl font-bold text-white" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>{fullName || "User"}</h2>
-          <p className="text-[#A5A9B5] text-sm">{user?.email ?? ""}</p>
+          <h2 className="text-xl font-bold text-foreground" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>{fullName}</h2>
+          <p className="text-muted-foreground text-sm">{email}</p>
         </div>
       </div>
 
       {/* Membership */}
-      <div className="rounded-2xl p-4 flex items-center justify-between" style={{ background:"linear-gradient(135deg,rgba(88,108,255,0.15) 0%,rgba(126,87,255,0.15) 100%)", border:"1px solid rgba(88,108,255,0.3)" }}>
+      <div className="rounded-2xl p-4 flex items-center justify-between" style={{ background:"linear-gradient(135deg,rgba(116,86,208,0.12) 0%,rgba(79,192,232,0.12) 100%)", border:"1px solid rgba(116,86,208,0.25)" }}>
         <div>
-          <p className="text-xs text-[#586CFF] font-bold uppercase tracking-wider">Helpers Plus</p>
-          <p className="text-white font-bold mt-0.5">Upgrade for free priority booking</p>
-          <p className="text-[#A5A9B5] text-xs mt-0.5">Starts at ₹99/month</p>
+          <p className="text-xs text-primary font-bold uppercase tracking-wider">Helpers Plus</p>
+          <p className="text-foreground font-bold mt-0.5">Upgrade for free priority booking</p>
+          <p className="text-muted-foreground text-xs mt-0.5">Starts at ₹99/month</p>
         </div>
-        <button onClick={() => toast("Helpers Plus trial activated! Enjoy priority booking.", "#586CFF")} className="text-white font-bold text-sm px-4 py-2 rounded-xl active:scale-90 transition-transform" style={{ background:"linear-gradient(135deg,#586CFF,#7E57FF)" }}>
+        <button onClick={() => toast("Helpers Plus trial activated! Enjoy priority booking.", "#7456D0")} className="text-white font-bold text-sm px-4 py-2 rounded-xl active:scale-90 transition-transform" style={{ background:"linear-gradient(135deg,#7456D0,#6648C2)" }}>
           Try Free
         </button>
       </div>
 
-      <div className="bg-[#161920] border border-[#222733] rounded-2xl overflow-hidden">
+      <div className="bg-card border border-border rounded-2xl overflow-hidden">
         {menuItems.map((item, i) => (
-          <button key={item.label} onClick={item.action} className={`w-full flex items-center gap-4 px-4 py-4 hover:bg-[#20242D] active:bg-[#252933] transition-colors text-left ${i < menuItems.length-1 ? "border-b border-[#222733]" : ""} ${item.label==="Sign Out"?"text-[#EF4444]":"text-white"}`}>
+          <button key={item.label} onClick={item.action} className={`w-full flex items-center gap-4 px-4 py-4 hover:bg-muted active:bg-muted transition-colors text-left ${i < menuItems.length-1 ? "border-b border-border" : ""} ${item.label==="Sign Out"?"text-destructive":"text-foreground"}`}>
             <span className="text-lg">{item.icon}</span>
             <span className="text-sm font-medium flex-1">{item.label}</span>
-            {item.label !== "Sign Out" && <ChevronRight size={16} className="text-[#A5A9B5]" />}
+            {item.label !== "Sign Out" && <ChevronRight size={16} className="text-muted-foreground" />}
           </button>
         ))}
       </div>
 
       {/* Referral */}
-      <div className="bg-[#161920] border border-[#222733] rounded-2xl p-4 flex items-center gap-3">
+      <div className="bg-card border border-border rounded-2xl p-4 flex items-center gap-3">
         <div className="flex-1 min-w-0">
-          <p className="text-white font-bold text-sm" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>Your referral code</p>
-          <p className="text-[#586CFF] font-bold text-lg tracking-wider">RAHUL200</p>
+          <p className="text-foreground font-bold text-sm" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>Your referral code</p>
+          <p className="text-primary font-bold text-lg tracking-wider">RAHUL200</p>
         </div>
-        <button onClick={() => toast("Referral code RAHUL200 copied!", "#22C55E")} className="flex items-center gap-1.5 bg-[#20242D] text-[#A5A9B5] text-xs font-semibold px-3 py-2 rounded-xl active:scale-90 transition-transform">
+        <button onClick={() => toast("Referral code RAHUL200 copied!", "#5BE7C4")} className="flex items-center gap-1.5 bg-muted text-muted-foreground text-xs font-semibold px-3 py-2 rounded-xl active:scale-90 transition-transform">
           <Copy size={13}/> Copy
         </button>
       </div>
@@ -2128,36 +2193,36 @@ function AdminProfileScreen({ onNavigate, toast }: { onNavigate: (s: Screen) => 
   const handleSignOut = async () => {
     try {
       await logout();
-      toast("Signed out successfully", "#22C55E");
+      toast("Signed out successfully", "#5BE7C4");
     } catch {
-      toast("Signed out", "#586CFF");
+      toast("Signed out", "#7456D0");
     }
   };
 
   return (
     <div className="flex flex-col gap-5 pb-4 animate-fade-in">
       <div className="pt-4 flex flex-col items-center gap-3">
-        <div className="w-24 h-24 rounded-full bg-gradient-to-br from-[#586CFF] to-[#7E57FF] flex items-center justify-center text-3xl font-bold text-white">{initial}</div>
+        <div className="w-24 h-24 rounded-full bg-gradient-to-br from-[#7456D0] to-[#4FC0E8] flex items-center justify-center text-3xl font-bold text-white">{initial}</div>
         <div className="text-center">
-          <h2 className="text-xl font-bold text-white" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>{fullName || "Admin"}</h2>
-          <p className="text-[#A5A9B5] text-sm">{user?.email ?? ""}</p>
-          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[rgba(245,158,11,0.15)] text-[#FBBF24]">ADMIN</span>
+          <h2 className="text-xl font-bold text-foreground" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>{fullName || "Admin"}</h2>
+          <p className="text-muted-foreground text-sm">{user?.email ?? ""}</p>
+          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[rgba(245,158,11,0.15)] text-[#F59E0B]">ADMIN</span>
         </div>
       </div>
 
-      <div className="bg-[#161920] border border-[#222733] rounded-2xl overflow-hidden">
+      <div className="bg-card border border-border rounded-2xl overflow-hidden">
         {[
           { label:"Email",    value: user?.email ?? "—" },
           { label:"Role",     value: user?.role ?? "ADMIN" },
           { label:"Phone",    value: user?.phone ?? "—" },
           { label:"Account",  value: user?.isVerified ? "Verified" : "Unverified" },
         ].map((item, i) => (
-          <div key={item.label} className={`flex items-center justify-between px-4 py-3 ${i < 3 ? "border-b border-[#222733]" : ""}`}>
-            <span className="text-xs text-[#A5A9B5] uppercase tracking-wider">{item.label}</span>
-            <span className="text-sm text-white font-medium">{item.value}</span>
+          <div key={item.label} className={`flex items-center justify-between px-4 py-3 ${i < 3 ? "border-b border-border" : ""}`}>
+            <span className="text-xs text-muted-foreground uppercase tracking-wider">{item.label}</span>
+            <span className="text-sm text-foreground font-medium">{item.value}</span>
           </div>
         ))}
-        <button onClick={handleSignOut} className="w-full flex items-center justify-center gap-2 px-4 py-4 text-[#EF4444] font-semibold text-sm hover:bg-[#20242D] transition-colors">
+        <button onClick={handleSignOut} className="w-full flex items-center justify-center gap-2 px-4 py-4 text-destructive font-semibold text-sm hover:bg-muted transition-colors">
           Sign Out
         </button>
       </div>
@@ -2179,16 +2244,16 @@ function ConfirmModal({ booking, onClose }: { booking: BookingData; onClose: () 
     : "—";
 
   return (
-    <div className="absolute inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm px-5 pb-8">
-      <div className="bg-[#161920] border border-[#222733] rounded-3xl p-6 w-full flex flex-col items-center gap-4">
-        <div className="w-16 h-16 rounded-full flex items-center justify-center" style={{ background:"rgba(34,197,94,0.15)" }}>
-          <CheckCircle2 size={32} className="text-[#22C55E]" />
+    <div className="absolute inset-0 z-50 flex items-end justify-center bg-black/40 backdrop-blur-sm px-5 pb-8">
+      <div className="bg-card border border-border rounded-3xl p-6 w-full flex flex-col items-center gap-4 shadow-xl">
+        <div className="w-16 h-16 rounded-full flex items-center justify-center bg-accent-soft">
+          <CheckCircle2 size={32} className="text-[#5BE7C4]" />
         </div>
         <div className="text-center">
-          <h2 className="text-xl font-bold text-white" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>Booking Requested!</h2>
-          <p className="text-[#A5A9B5] text-sm mt-1">You&apos;ll get a reminder 30 min before your helper arrives.</p>
+          <h2 className="text-xl font-bold text-foreground" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>Booking Requested!</h2>
+          <p className="text-muted-foreground text-sm mt-1">You&apos;ll get a reminder 30 min before your helper arrives.</p>
         </div>
-        <div className="bg-[#20242D] rounded-2xl p-4 w-full flex flex-col gap-2 text-sm">
+        <div className="bg-muted rounded-2xl p-4 w-full flex flex-col gap-2 text-sm">
           {([
             ["Service",        booking.service.title],
             ["Helper",         helperName || "—"],
@@ -2198,13 +2263,13 @@ function ConfirmModal({ booking, onClose }: { booking: BookingData; onClose: () 
             ["Status",         booking.status],
           ] as [string, string][]).map(([k, v]) => (
             <div key={k} className="flex justify-between">
-              <span className="text-[#A5A9B5]">{k}</span>
-              <span className="text-white font-semibold">{v}</span>
+              <span className="text-muted-foreground">{k}</span>
+              <span className="text-foreground font-semibold">{v}</span>
             </div>
           ))}
         </div>
-        <p className="text-[#A5A9B5] text-[11px] text-center">Payment will be collected separately. This booking is not yet paid.</p>
-        <button onClick={onClose} className="w-full h-12 rounded-2xl font-bold text-white active:opacity-80 transition-opacity" style={{ background:"linear-gradient(135deg,#586CFF,#7E57FF)" }}>Done</button>
+        <p className="text-muted-foreground text-[11px] text-center">Payment will be collected separately. This booking is not yet paid.</p>
+        <button onClick={onClose} className="w-full h-12 rounded-2xl font-bold text-white active:opacity-80 transition-opacity" style={{ background:"linear-gradient(135deg,#7456D0,#6648C2)" }}>Done</button>
       </div>
     </div>
   );
@@ -2218,10 +2283,10 @@ function HelperDashboardScreen({ onNavigate, toast }: { onNavigate: (s: Screen, 
   if (isLoading) {
     return (
       <div className="flex flex-col gap-4 pb-4 pt-4 px-2 animate-pulse">
-        <div className="h-24 bg-[#161920] rounded-2xl w-full" />
+        <div className="h-24 bg-muted rounded-2xl w-full" />
         <div className="grid grid-cols-2 gap-3 mt-2">
-          <div className="h-20 bg-[#161920] rounded-2xl w-full" />
-          <div className="h-20 bg-[#161920] rounded-2xl w-full" />
+          <div className="h-20 bg-muted rounded-2xl w-full" />
+          <div className="h-20 bg-muted rounded-2xl w-full" />
         </div>
       </div>
     );
@@ -2230,8 +2295,8 @@ function HelperDashboardScreen({ onNavigate, toast }: { onNavigate: (s: Screen, 
   if (error) {
     return (
       <div className="flex flex-col items-center justify-center pt-12 pb-4">
-        <p className="text-[#EF4444] text-sm mb-3">{error}</p>
-        <button onClick={refetch} className="text-[#586CFF] text-sm font-semibold">Retry</button>
+        <p className="text-destructive text-sm mb-3">{error}</p>
+        <button onClick={refetch} className="text-primary text-sm font-semibold">Retry</button>
       </div>
     );
   }
@@ -2239,7 +2304,7 @@ function HelperDashboardScreen({ onNavigate, toast }: { onNavigate: (s: Screen, 
   if (!profile) {
     return (
       <div className="flex flex-col items-center justify-center pt-12 pb-4">
-        <p className="text-[#A5A9B5] text-sm">Profile not found.</p>
+        <p className="text-muted-foreground text-sm">Profile not found.</p>
       </div>
     );
   }
@@ -2247,21 +2312,21 @@ function HelperDashboardScreen({ onNavigate, toast }: { onNavigate: (s: Screen, 
   return (
     <div className="flex flex-col gap-5 pb-4 pt-2 animate-fade-in">
       <div className="flex items-center justify-between">
-        <h2 className="text-xl font-bold text-white" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>Dashboard</h2>
+        <h2 className="text-xl font-bold text-foreground" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>Dashboard</h2>
       </div>
 
       {/* Profile summary */}
-      <div className="bg-[#161920] border border-[#222733] rounded-2xl p-5 flex items-center gap-4">
-        <div className="w-14 h-14 rounded-full bg-gradient-to-br from-[#586CFF] to-[#7E57FF] flex items-center justify-center text-white font-bold text-xl">
+      <div className="bg-card border border-border rounded-2xl p-5 flex items-center gap-4">
+        <div className="w-14 h-14 rounded-full bg-gradient-to-br from-[#7456D0] to-[#4FC0E8] flex items-center justify-center text-white font-bold text-xl">
           {profile.user?.firstName?.[0]?.toUpperCase() ?? "H"}
         </div>
         <div className="flex-1 min-w-0">
-          <p className="font-bold text-white text-lg truncate">
+          <p className="font-bold text-foreground text-lg truncate">
             {profile.user?.firstName} {profile.user?.lastName}
           </p>
           <div className="flex items-center gap-2 mt-1">
-            <span className="text-[#A5A9B5] text-xs">Status:</span>
-            <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${profile.verificationStatus === 'VERIFIED' ? 'bg-[rgba(34,197,94,0.15)] text-[#22C55E]' : 'bg-[rgba(245,158,11,0.15)] text-[#F59E0B]'}`}>
+            <span className="text-muted-foreground text-xs">Status:</span>
+            <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${profile.verificationStatus === 'VERIFIED' ? 'bg-accent-soft text-[#0B3D2E]' : 'bg-[rgba(245,158,11,0.15)] text-[#F59E0B]'}`}>
               {profile.verificationStatus}
             </span>
           </div>
@@ -2270,24 +2335,24 @@ function HelperDashboardScreen({ onNavigate, toast }: { onNavigate: (s: Screen, 
 
       {/* Stats */}
       <div className="grid grid-cols-2 gap-3">
-        <div className="bg-[#161920] border border-[#222733] rounded-2xl p-4">
-          <p className="text-[#A5A9B5] text-xs font-semibold mb-1">Rating</p>
+        <div className="bg-card border border-border rounded-2xl p-4">
+          <p className="text-muted-foreground text-xs font-semibold mb-1">Rating</p>
           <div className="flex items-center gap-1.5">
             <Star size={16} className="text-[#F59E0B]" fill="#F59E0B" />
-            <span className="text-xl font-bold text-white">{profile.rating}</span>
+            <span className="text-xl font-bold text-foreground">{profile.rating}</span>
           </div>
         </div>
-        <div className="bg-[#161920] border border-[#222733] rounded-2xl p-4">
-          <p className="text-[#A5A9B5] text-xs font-semibold mb-1">Reviews</p>
+        <div className="bg-card border border-border rounded-2xl p-4">
+          <p className="text-muted-foreground text-xs font-semibold mb-1">Reviews</p>
           <div className="flex items-center gap-1.5">
-            <Award size={16} className="text-[#586CFF]" />
-            <span className="text-xl font-bold text-white">{profile.totalReviews}</span>
+            <Award size={16} className="text-primary" />
+            <span className="text-xl font-bold text-foreground">{profile.totalReviews}</span>
           </div>
         </div>
       </div>
 
-      <div className="bg-[#161920] border border-[#222733] rounded-2xl p-5 text-center mt-2">
-         <p className="text-[#A5A9B5] text-sm">More analytics coming soon!</p>
+      <div className="bg-card border border-border rounded-2xl p-5 text-center mt-2">
+         <p className="text-muted-foreground text-sm">More analytics coming soon!</p>
       </div>
     </div>
   );
@@ -2306,18 +2371,18 @@ function HelperBookingsScreen({ onNavigate, onViewDetails, toast }: { onNavigate
   return (
     <div className="flex flex-col gap-5 pb-4 animate-fade-in">
       <div className="pt-2">
-        <h2 className="text-xl font-bold text-white" style={{ fontFamily: "'Plus Jakarta Sans',sans-serif" }}>Job Assignments</h2>
-        <p className="text-[#A5A9B5] text-sm mt-0.5">Manage your upcoming jobs</p>
+        <h2 className="text-xl font-bold text-foreground" style={{ fontFamily: "'Plus Jakarta Sans',sans-serif" }}>Job Assignments</h2>
+        <p className="text-muted-foreground text-sm mt-0.5">Manage your upcoming jobs</p>
       </div>
 
       {/* Tab switcher */}
-      <div className="flex bg-[#20242D] rounded-2xl p-1">
+      <div className="flex bg-muted rounded-2xl p-1">
         {(["active", "past"] as const).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
             className={`flex-1 py-2.5 rounded-xl text-sm font-semibold transition-colors capitalize ${
-              tab === t ? "bg-[#586CFF] text-white" : "text-[#A5A9B5]"
+              tab === t ? "bg-primary text-white" : "text-muted-foreground"
             }`}
           >
             {t}
@@ -2332,15 +2397,15 @@ function HelperBookingsScreen({ onNavigate, onViewDetails, toast }: { onNavigate
           ))}
         </div>
       ) : error ? (
-         <div className="rounded-2xl border border-[rgba(239,68,68,0.35)] bg-[rgba(239,68,68,0.08)] p-6 text-center">
-          <CalendarCheck size={36} className="text-[#EF4444] mx-auto mb-3 opacity-60" />
-          <p className="text-[#FCA5A5] text-sm mb-3">{error}</p>
-          <button onClick={() => refetch()} className="text-[#586CFF] text-sm font-semibold bg-[rgba(88,108,255,0.12)] px-4 py-2 rounded-xl">Retry</button>
+         <div className="rounded-2xl border border-destructive/30 bg-destructive/10 p-6 text-center">
+          <CalendarCheck size={36} className="text-destructive mx-auto mb-3 opacity-60" />
+          <p className="text-destructive text-sm mb-3">{error}</p>
+          <button onClick={() => refetch()} className="text-primary text-sm font-semibold bg-primary-soft px-4 py-2 rounded-xl">Retry</button>
         </div>
       ) : filtered.length === 0 ? (
          <div className="text-center py-12">
-          <CalendarCheck size={48} className="text-[#A5A9B5] mx-auto mb-3 opacity-30" />
-          <p className="text-[#A5A9B5]">No {tab} assignments</p>
+          <CalendarCheck size={48} className="text-muted-foreground mx-auto mb-3 opacity-30" />
+          <p className="text-muted-foreground">No {tab} assignments</p>
         </div>
       ) : (
         <div className="flex flex-col gap-3">
@@ -2348,21 +2413,21 @@ function HelperBookingsScreen({ onNavigate, onViewDetails, toast }: { onNavigate
             const customerName = b.customer ? `${b.customer.firstName} ${b.customer.lastName}`.trim() : "Customer";
             const scheduledDisplay = formatBookingDate(b.scheduledAt ?? b.bookingDate);
                 return (
-                  <div key={b.id} className="bg-[#161920] border border-[#222733] rounded-2xl p-4">
+                  <div key={b.id} className="bg-card border border-border rounded-2xl p-4">
                 <div className="flex items-start justify-between gap-2 mb-3">
                   <div className="flex-1 min-w-0">
-                    <p className="font-bold text-white text-sm truncate">{b.service?.title ?? 'Service'}</p>
-                    <p className="text-[#A5A9B5] text-xs mt-0.5 truncate">{customerName}</p>
+                    <p className="font-bold text-foreground text-sm truncate">{b.service?.title ?? 'Service'}</p>
+                    <p className="text-muted-foreground text-xs mt-0.5 truncate">{customerName}</p>
                   </div>
                   <BookingStatusPill status={b.status} />
                 </div>
-                <div className="flex items-center gap-1.5 text-xs text-[#A5A9B5] mb-1">
+                <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-1">
                   <CalendarCheck size={11} className="shrink-0" />
                   <span>{scheduledDisplay}</span>
                 </div>
-                <div className="flex items-center justify-between mt-4 pt-3 border-t border-[#222733]">
-                  <span className="text-white font-bold">{typeof b.totalAmount === "number" ? `₹${b.totalAmount.toLocaleString()}` : "—"}</span>
-                  <button onClick={() => onViewDetails(b.id)} className="text-xs font-semibold text-white bg-[#20242D] px-3 py-1.5 rounded-xl active:scale-95">View Details</button>
+                <div className="flex items-center justify-between mt-4 pt-3 border-t border-border">
+                  <span className="text-foreground font-bold">{typeof b.totalAmount === "number" ? `₹${b.totalAmount.toLocaleString()}` : "—"}</span>
+                  <button onClick={() => onViewDetails(b.id)} className="text-xs font-semibold text-foreground bg-muted px-3 py-1.5 rounded-xl active:scale-95">View Details</button>
                 </div>
               </div>
             );
@@ -2405,7 +2470,7 @@ function HelperBookingDetailScreen({ bookingId, onBack, toast }: { bookingId: st
     try {
       const updated = await bookingsApi.update(booking.id, { status });
       setBooking(updated);
-      toast(`Status updated to ${status}`, "#22C55E");
+      toast(`Status updated to ${status}`, "#5BE7C4");
     } catch (err) {
       toast(err instanceof Error ? err.message : "Failed to update status", "#EF4444");
     } finally {
@@ -2417,10 +2482,10 @@ function HelperBookingDetailScreen({ bookingId, onBack, toast }: { bookingId: st
     return (
       <div className="flex flex-col pb-4 animate-pulse">
         <div className="flex items-center gap-4 pt-2 pb-5">
-          <div className="w-10 h-10 rounded-full bg-[#20242D]" />
-          <div className="h-5 bg-[#20242D] rounded w-36" />
+          <div className="w-10 h-10 rounded-full bg-muted" />
+          <div className="h-5 bg-muted rounded w-36" />
         </div>
-        <div className="bg-[#161920] rounded-2xl h-48" />
+        <div className="bg-muted rounded-2xl h-48" />
       </div>
     );
   }
@@ -2429,14 +2494,14 @@ function HelperBookingDetailScreen({ bookingId, onBack, toast }: { bookingId: st
     return (
        <div className="flex flex-col gap-4 pt-2 pb-4">
         <div className="flex items-center gap-4">
-          <button onClick={onBack} className="w-10 h-10 rounded-full bg-[#20242D] flex items-center justify-center">
-            <ArrowLeft size={18} className="text-white" />
+          <button onClick={onBack} className="w-10 h-10 rounded-full bg-muted flex items-center justify-center">
+            <ArrowLeft size={18} className="text-foreground" />
           </button>
-          <h2 className="font-bold text-white text-lg">Job Details</h2>
+          <h2 className="font-bold text-foreground text-lg">Job Details</h2>
         </div>
         <div className="text-center py-12">
-          <p className="text-[#EF4444] text-sm mb-3">{error || "Not found"}</p>
-          {error && <button onClick={fetchBooking} className="text-[#586CFF] text-sm font-semibold">Retry</button>}
+          <p className="text-destructive text-sm mb-3">{error || "Not found"}</p>
+          {error && <button onClick={fetchBooking} className="text-primary text-sm font-semibold">Retry</button>}
         </div>
       </div>
     );
@@ -2451,19 +2516,19 @@ function HelperBookingDetailScreen({ bookingId, onBack, toast }: { bookingId: st
   return (
     <div className="flex flex-col pb-4 animate-fade-in">
       <div className="flex items-center gap-4 pt-2 pb-5">
-        <button onClick={onBack} className="w-10 h-10 rounded-full bg-[#20242D] flex items-center justify-center">
-          <ArrowLeft size={18} className="text-white" />
+        <button onClick={onBack} className="w-10 h-10 rounded-full bg-muted flex items-center justify-center">
+          <ArrowLeft size={18} className="text-foreground" />
         </button>
         <div className="flex-1 min-w-0">
-          <h2 className="font-bold text-white text-lg truncate" style={{ fontFamily: "'Plus Jakarta Sans',sans-serif" }}>
+          <h2 className="font-bold text-foreground text-lg truncate" style={{ fontFamily: "'Plus Jakarta Sans',sans-serif" }}>
             {booking.service?.title}
           </h2>
-          <p className="text-[#A5A9B5] text-xs mt-0.5">Job details</p>
+          <p className="text-muted-foreground text-xs mt-0.5">Job details</p>
         </div>
         <BookingStatusPill status={booking.status} />
       </div>
 
-      <div className="bg-[#161920] border border-[#222733] rounded-2xl px-4">
+      <div className="bg-card border border-border rounded-2xl px-4">
         <BookingDetailRow label="Booking ID" value={booking.id} />
         <BookingDetailRow label="Customer" value={customerName} />
         {booking.customer?.phone && <BookingDetailRow label="Phone" value={booking.customer.phone} />}
@@ -2474,7 +2539,7 @@ function HelperBookingDetailScreen({ bookingId, onBack, toast }: { bookingId: st
 
       {booking.status === "PENDING" && (
         <div className="mt-4 flex gap-3">
-          <button onClick={() => handleUpdateStatus("ACCEPTED")} disabled={isUpdating} className="flex-1 h-12 rounded-2xl font-bold text-white bg-[#586CFF] active:scale-95 disabled:opacity-50">
+          <button onClick={() => handleUpdateStatus("ACCEPTED")} disabled={isUpdating} className="flex-1 h-12 rounded-2xl font-bold text-white bg-primary active:scale-95 disabled:opacity-50">
             Accept Job
           </button>
         </div>
@@ -2482,7 +2547,7 @@ function HelperBookingDetailScreen({ bookingId, onBack, toast }: { bookingId: st
 
       {booking.status === "ACCEPTED" && (
         <div className="mt-4 flex gap-3">
-          <button onClick={() => handleUpdateStatus("ONGOING")} disabled={isUpdating} className="flex-1 h-12 rounded-2xl font-bold text-white bg-[#06B6D4] active:scale-95 disabled:opacity-50">
+          <button onClick={() => handleUpdateStatus("ONGOING")} disabled={isUpdating} className="flex-1 h-12 rounded-2xl font-bold text-white bg-[#4FC0E8] active:scale-95 disabled:opacity-50">
             Start Job
           </button>
         </div>
@@ -2490,13 +2555,13 @@ function HelperBookingDetailScreen({ bookingId, onBack, toast }: { bookingId: st
 
       {booking.status === "ONGOING" && (
         <div className="mt-4 flex gap-3">
-          <button onClick={() => handleUpdateStatus("COMPLETED")} disabled={isUpdating} className="flex-1 h-12 rounded-2xl font-bold text-white bg-[#22C55E] active:scale-95 disabled:opacity-50">
+          <button onClick={() => handleUpdateStatus("COMPLETED")} disabled={isUpdating} className="flex-1 h-12 rounded-2xl font-bold text-white bg-[#5BE7C4] active:scale-95 disabled:opacity-50">
             Complete Job
           </button>
         </div>
       )}
 
-      <button onClick={onBack} className="mt-3 w-full h-12 rounded-2xl font-bold text-[#A5A9B5] bg-[#20242D] flex items-center justify-center gap-2 active:opacity-80 transition-opacity">
+      <button onClick={onBack} className="mt-3 w-full h-12 rounded-2xl font-bold text-foreground bg-muted flex items-center justify-center gap-2 active:opacity-80 transition-opacity">
         Back to Jobs
       </button>
     </div>
@@ -2540,7 +2605,7 @@ function HelperProfileScreen({ onNavigate, toast }: { onNavigate: (s: Screen) =>
         hourlyRate: Number(editForm.hourlyRate),
         isAvailable: editForm.isAvailable,
       });
-      toast("Profile updated successfully!", "#22C55E");
+      toast("Profile updated successfully!", "#5BE7C4");
       setIsEditing(false);
       refetch();
     } catch (err) {
@@ -2553,9 +2618,9 @@ function HelperProfileScreen({ onNavigate, toast }: { onNavigate: (s: Screen) =>
   const handleSignOut = async () => {
     try {
       await logout();
-      toast("Signed out successfully", "#22C55E");
+      toast("Signed out successfully", "#5BE7C4");
     } catch {
-      toast("Signed out", "#586CFF");
+      toast("Signed out", "#7456D0");
     }
   };
 
@@ -2563,11 +2628,11 @@ function HelperProfileScreen({ onNavigate, toast }: { onNavigate: (s: Screen) =>
     return (
       <div className="flex flex-col gap-4 pb-4 pt-4 px-2 animate-pulse">
         <div className="flex flex-col items-center gap-3">
-          <div className="w-24 h-24 rounded-full bg-[#161920]" />
-          <div className="h-6 bg-[#161920] rounded w-32" />
+          <div className="w-24 h-24 rounded-full bg-muted" />
+          <div className="h-6 bg-muted rounded w-32" />
         </div>
-        <div className="h-32 bg-[#161920] rounded-2xl w-full mt-4" />
-        <div className="h-24 bg-[#161920] rounded-2xl w-full" />
+        <div className="h-32 bg-muted rounded-2xl w-full mt-4" />
+        <div className="h-24 bg-muted rounded-2xl w-full" />
       </div>
     );
   }
@@ -2575,8 +2640,8 @@ function HelperProfileScreen({ onNavigate, toast }: { onNavigate: (s: Screen) =>
   if (error || !profile) {
     return (
       <div className="flex flex-col items-center justify-center pt-12 pb-4">
-        <p className="text-[#EF4444] text-sm mb-3">{error || "Profile not found"}</p>
-        <button onClick={refetch} className="text-[#586CFF] text-sm font-semibold">Retry</button>
+        <p className="text-destructive text-sm mb-3">{error || "Profile not found"}</p>
+        <button onClick={refetch} className="text-primary text-sm font-semibold">Retry</button>
       </div>
     );
   }
@@ -2588,19 +2653,19 @@ function HelperProfileScreen({ onNavigate, toast }: { onNavigate: (s: Screen) =>
     return (
       <div className="flex flex-col gap-5 pb-4 pt-2">
         <div className="flex items-center justify-between">
-          <h2 className="text-xl font-bold text-white" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>Edit Profile</h2>
-          <button onClick={() => setIsEditing(false)} className="text-[#A5A9B5] text-sm font-semibold active:scale-95">Cancel</button>
+          <h2 className="text-xl font-bold text-foreground" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>Edit Profile</h2>
+          <button onClick={() => setIsEditing(false)} className="text-muted-foreground text-sm font-semibold active:scale-95">Cancel</button>
         </div>
 
         <form onSubmit={handleSave} className="flex flex-col gap-4">
           <div className="flex flex-col gap-1.5">
-            <label className="text-[#A5A9B5] text-xs font-semibold px-1">Description / Bio</label>
+            <label className="text-muted-foreground text-xs font-semibold px-1">Description / Bio</label>
             <textarea
               required
               maxLength={500}
               value={editForm.bio}
               onChange={(e) => setEditForm(prev => ({ ...prev, bio: e.target.value }))}
-               className="w-full bg-[#161920] border border-[#222733] rounded-2xl p-4 text-white text-sm outline-none focus:border-[#586CFF] transition-colors resize-none"
+               className="w-full bg-card border border-border rounded-2xl p-4 text-foreground text-sm outline-none focus:border-primary transition-colors resize-none"
               rows={4}
               placeholder="Tell customers about your experience..."
             />
@@ -2608,7 +2673,7 @@ function HelperProfileScreen({ onNavigate, toast }: { onNavigate: (s: Screen) =>
 
           <div className="grid grid-cols-2 gap-4">
             <div className="flex flex-col gap-1.5">
-              <label className="text-[#A5A9B5] text-xs font-semibold px-1">Experience (Years)</label>
+              <label className="text-muted-foreground text-xs font-semibold px-1">Experience (Years)</label>
               <input
                 type="number"
                 min="0"
@@ -2616,31 +2681,31 @@ function HelperProfileScreen({ onNavigate, toast }: { onNavigate: (s: Screen) =>
                 required
                 value={editForm.experienceYears}
                 onChange={(e) => setEditForm(prev => ({ ...prev, experienceYears: parseInt(e.target.value) || 0 }))}
-                className="w-full h-12 bg-[#161920] border border-[#222733] rounded-2xl px-4 text-white text-sm outline-none focus:border-[#586CFF] transition-colors"
+                className="w-full h-12 bg-card border border-border rounded-2xl px-4 text-foreground text-sm outline-none focus:border-primary transition-colors"
               />
             </div>
             <div className="flex flex-col gap-1.5">
-              <label className="text-[#A5A9B5] text-xs font-semibold px-1">Hourly Rate (₹)</label>
+              <label className="text-muted-foreground text-xs font-semibold px-1">Hourly Rate (₹)</label>
               <input
                 type="number"
                 min="0"
                 required
                 value={editForm.hourlyRate}
                 onChange={(e) => setEditForm(prev => ({ ...prev, hourlyRate: parseInt(e.target.value) || 0 }))}
-                className="w-full h-12 bg-[#161920] border border-[#222733] rounded-2xl px-4 text-white text-sm outline-none focus:border-[#586CFF] transition-colors"
+                className="w-full h-12 bg-card border border-border rounded-2xl px-4 text-foreground text-sm outline-none focus:border-primary transition-colors"
               />
             </div>
           </div>
 
-          <div className="flex items-center justify-between bg-[#161920] border border-[#222733] rounded-2xl p-4 mt-2">
+          <div className="flex items-center justify-between bg-card border border-border rounded-2xl p-4 mt-2">
             <div>
-              <p className="text-white text-sm font-semibold">Available for Work</p>
-              <p className="text-[#A5A9B5] text-xs mt-0.5">Show your profile in search results</p>
+              <p className="text-foreground text-sm font-semibold">Available for Work</p>
+              <p className="text-muted-foreground text-xs mt-0.5">Show your profile in search results</p>
             </div>
             <button
               type="button"
               onClick={() => setEditForm(prev => ({ ...prev, isAvailable: !prev.isAvailable }))}
-              className={`w-12 h-6 rounded-full p-1 transition-colors ${editForm.isAvailable ? "bg-[#22C55E]" : "bg-[#20242D]"}`}
+              className={`w-12 h-6 rounded-full p-1 transition-colors ${editForm.isAvailable ? "bg-[#5BE7C4]" : "bg-muted"}`}
             >
               <div className={`w-4 h-4 bg-white rounded-full transition-transform ${editForm.isAvailable ? "translate-x-6" : "translate-x-0"}`} />
             </button>
@@ -2650,7 +2715,7 @@ function HelperProfileScreen({ onNavigate, toast }: { onNavigate: (s: Screen) =>
             type="submit"
             disabled={isSaving}
             className="w-full h-12 rounded-2xl font-bold text-white mt-4 active:scale-[0.98] transition-transform disabled:opacity-50"
-            style={{ background:"linear-gradient(135deg,#586CFF,#7E57FF)" }}
+            style={{ background:"linear-gradient(135deg,#7456D0,#6648C2)" }}
           >
             {isSaving ? "Saving..." : "Save Changes"}
           </button>
@@ -2663,64 +2728,64 @@ function HelperProfileScreen({ onNavigate, toast }: { onNavigate: (s: Screen) =>
     <div className="flex flex-col gap-5 pb-4 animate-fade-in">
       {/* Header Info */}
       <div className="pt-4 flex flex-col items-center gap-3 relative">
-         <button onClick={() => setIsEditing(true)} className="absolute top-0 right-0 p-2 bg-[#161920] rounded-full active:scale-90 transition-transform">
-           <Edit2 size={16} className="text-[#A5A9B5]" />
+         <button onClick={() => setIsEditing(true)} className="absolute top-0 right-0 p-2 bg-muted rounded-full active:scale-90 transition-transform">
+           <Edit2 size={16} className="text-muted-foreground" />
         </button>
-        <div className="w-24 h-24 rounded-full bg-gradient-to-br from-[#586CFF] to-[#7E57FF] flex items-center justify-center text-3xl font-bold text-white">
+        <div className="w-24 h-24 rounded-full bg-gradient-to-br from-[#7456D0] to-[#4FC0E8] flex items-center justify-center text-3xl font-bold text-white">
           {initial}
         </div>
         <div className="text-center">
-          <h2 className="text-xl font-bold text-white flex items-center justify-center gap-1.5" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>
+          <h2 className="text-xl font-bold text-foreground flex items-center justify-center gap-1.5" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>
             {fullName || "Helper"}
-            {profile.verificationStatus === 'VERIFIED' && <CheckCircle2 size={16} className="text-[#22C55E]" />}
+            {profile.verificationStatus === 'VERIFIED' && <CheckCircle2 size={16} className="text-[#5BE7C4]" />}
           </h2>
-          <p className="text-[#A5A9B5] text-sm">{user?.email ?? ""}</p>
+          <p className="text-muted-foreground text-sm">{user?.email ?? ""}</p>
         </div>
         <div className="flex gap-2">
-          <span className={`text-xs font-bold px-3 py-1 rounded-full ${profile.isAvailable ? 'bg-[rgba(34,197,94,0.15)] text-[#22C55E]' : 'bg-[rgba(165,169,181,0.15)] text-[#A5A9B5]'}`}>
+          <span className={`text-xs font-bold px-3 py-1 rounded-full ${profile.isAvailable ? 'bg-accent-soft text-[#0B3D2E]' : 'bg-muted text-muted-foreground'}`}>
             {profile.isAvailable ? "Available" : "Not Available"}
           </span>
-          <span className={`text-xs font-bold px-3 py-1 rounded-full ${profile.verificationStatus === 'VERIFIED' ? 'bg-[rgba(34,197,94,0.15)] text-[#22C55E]' : 'bg-[rgba(245,158,11,0.15)] text-[#F59E0B]'}`}>
+          <span className={`text-xs font-bold px-3 py-1 rounded-full ${profile.verificationStatus === 'VERIFIED' ? 'bg-accent-soft text-[#0B3D2E]' : 'bg-[rgba(245,158,11,0.15)] text-[#F59E0B]'}`}>
             {profile.verificationStatus}
           </span>
         </div>
       </div>
 
       {/* Details Card */}
-      <div className="bg-[#161920] border border-[#222733] rounded-2xl p-4 flex flex-col gap-4">
+      <div className="bg-card border border-border rounded-2xl p-4 flex flex-col gap-4">
         <div>
-          <p className="text-[#A5A9B5] text-xs font-semibold mb-1">About Me</p>
-          <p className="text-white text-sm leading-relaxed">{profile.bio || "No description provided."}</p>
+          <p className="text-muted-foreground text-xs font-semibold mb-1">About Me</p>
+          <p className="text-foreground text-sm leading-relaxed">{profile.bio || "No description provided."}</p>
         </div>
-        <div className="flex border-t border-[#222733] pt-4">
+        <div className="flex border-t border-border pt-4">
           <div className="flex-1">
-            <p className="text-[#A5A9B5] text-xs font-semibold mb-1">Experience</p>
-            <p className="text-white text-sm font-semibold">{profile.experienceYears ? `${profile.experienceYears} Years` : "—"}</p>
+            <p className="text-muted-foreground text-xs font-semibold mb-1">Experience</p>
+            <p className="text-foreground text-sm font-semibold">{profile.experienceYears ? `${profile.experienceYears} Years` : "—"}</p>
           </div>
-          <div className="w-[1px] bg-[#222733]" />
+          <div className="w-[1px] bg-border" />
           <div className="flex-1 pl-4">
-            <p className="text-[#A5A9B5] text-xs font-semibold mb-1">Hourly Rate</p>
-            <p className="text-white text-sm font-semibold">{profile.hourlyRate ? `₹${profile.hourlyRate}` : "—"}</p>
+            <p className="text-muted-foreground text-xs font-semibold mb-1">Hourly Rate</p>
+            <p className="text-foreground text-sm font-semibold">{profile.hourlyRate ? `₹${profile.hourlyRate}` : "—"}</p>
           </div>
         </div>
       </div>
 
       {/* Services/Categories */}
       {profile.services && profile.services.length > 0 && (
-        <div className="bg-[#161920] border border-[#222733] rounded-2xl p-4">
-           <p className="text-[#A5A9B5] text-xs font-semibold mb-3">Services Offered</p>
+        <div className="bg-card border border-border rounded-2xl p-4">
+           <p className="text-muted-foreground text-xs font-semibold mb-3">Services Offered</p>
            <div className="flex flex-col gap-3">
-             {profile.services.map((s: any) => (
+              {profile.services.map((s: any) => (
                 <div key={s.id} className="flex justify-between items-center text-sm">
-                  <span className="text-white font-medium">{s.title}</span>
-                  <span className="text-[#A5A9B5]">{s.category?.name}</span>
+                  <span className="text-foreground font-medium">{s.title}</span>
+                  <span className="text-muted-foreground">{s.category?.name}</span>
                 </div>
              ))}
            </div>
         </div>
       )}
 
-      <button onClick={handleSignOut} className="mt-4 w-full h-14 bg-[rgba(239,68,68,0.08)] border border-[rgba(239,68,68,0.2)] rounded-2xl flex items-center justify-center gap-2 text-[#EF4444] font-bold active:scale-[0.98] transition-transform">
+      <button onClick={handleSignOut} className="mt-4 w-full h-14 bg-destructive/10 border border-destructive/20 rounded-2xl flex items-center justify-center gap-2 text-destructive font-bold active:scale-[0.98] transition-transform">
         <span className="text-lg">🚪</span> Sign Out
       </button>
     </div>
@@ -2771,7 +2836,7 @@ function HelperServiceRequestsScreen({ onBack, toast }: { onBack: () => void; to
         suggestedPriceType: form.suggestedPriceType,
         suggestedDuration: form.suggestedDuration || undefined,
       });
-      toast("Service request created successfully.", "#22C55E");
+      toast("Service request created successfully.", "#5BE7C4");
       setIsFormOpen(false);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to create service request.";
@@ -2782,60 +2847,60 @@ function HelperServiceRequestsScreen({ onBack, toast }: { onBack: () => void; to
   };
 
   const statusMap: Record<string, { label: string; cls: string }> = {
-    PENDING:  { label: "Pending",  cls: "text-[#FBBF24] bg-[rgba(245,158,11,0.15)]" },
-    APPROVED: { label: "Approved", cls: "text-[#22C55E] bg-[rgba(34,197,94,0.15)]" },
-    REJECTED: { label: "Rejected", cls: "text-[#EF4444] bg-[rgba(239,68,68,0.15)]" },
+    PENDING:  { label: "Pending",  cls: "text-[#F59E0B] bg-[rgba(245,158,11,0.15)]" },
+    APPROVED: { label: "Approved", cls: "text-[#0B3D2E] bg-accent-soft" },
+    REJECTED: { label: "Rejected", cls: "text-destructive bg-destructive/10" },
   };
 
   return (
     <div className="flex flex-col gap-4 pb-4 pt-2 animate-fade-in">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <button onClick={onBack} className="w-10 h-10 rounded-full bg-[#20242D] flex items-center justify-center active:scale-90 transition-transform">
-            <ArrowLeft size={18} className="text-white" />
+          <button onClick={onBack} className="w-10 h-10 rounded-full bg-muted flex items-center justify-center active:scale-90 transition-transform">
+            <ArrowLeft size={18} className="text-foreground" />
           </button>
-          <h2 className="font-bold text-white text-lg" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>My Service Requests</h2>
+          <h2 className="font-bold text-foreground text-lg" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>My Service Requests</h2>
         </div>
-        <button onClick={openCreate} className="flex items-center gap-2 rounded-xl bg-[#586CFF] px-3 py-2 text-xs font-bold text-white active:scale-95 transition-transform">
+        <button onClick={openCreate} className="flex items-center gap-2 rounded-xl bg-primary px-3 py-2 text-xs font-bold text-white active:scale-95 transition-transform">
           <Plus size={14} /> New
         </button>
       </div>
 
       {isLoading ? (
         <div className="flex flex-col gap-3">
-          {Array.from({ length: 5 }).map((_, i) => <div key={i} className="h-24 bg-[#161920] rounded-2xl animate-pulse" />)}
+          {Array.from({ length: 5 }).map((_, i) => <div key={i} className="h-24 bg-muted rounded-2xl animate-pulse" />)}
         </div>
       ) : error ? (
-        <div className="rounded-2xl border border-[rgba(239,68,68,0.35)] bg-[rgba(239,68,68,0.08)] p-6 text-center">
-          <p className="text-[#FCA5A5] text-sm mb-3">{error}</p>
-          <button onClick={refetch} className="text-[#586CFF] text-sm font-semibold bg-[rgba(88,108,255,0.12)] px-4 py-2 rounded-xl">Retry</button>
+        <div className="rounded-2xl border border-destructive/30 bg-destructive/10 p-6 text-center">
+          <p className="text-destructive text-sm mb-3">{error}</p>
+          <button onClick={refetch} className="text-primary text-sm font-semibold bg-primary-soft px-4 py-2 rounded-xl">Retry</button>
         </div>
       ) : requests.length === 0 ? (
         <div className="text-center py-12">
-          <ClipboardList size={40} className="text-[#A5A9B5] mx-auto mb-3 opacity-30" />
-          <p className="text-[#A5A9B5]">No service requests yet</p>
-          <button onClick={openCreate} className="mt-3 text-[#586CFF] text-sm font-semibold">Create your first request</button>
+          <ClipboardList size={40} className="text-muted-foreground mx-auto mb-3 opacity-30" />
+          <p className="text-muted-foreground">No service requests yet</p>
+          <button onClick={openCreate} className="mt-3 text-primary text-sm font-semibold">Create your first request</button>
         </div>
       ) : (
         <>
           <div className="flex flex-col gap-3">
             {requests.map((req) => {
-              const statusInfo = statusMap[req.status] || { label: req.status, cls: "text-[#A5A9B5] bg-[#20242D]" };
+              const statusInfo = statusMap[req.status] || { label: req.status, cls: "text-muted-foreground bg-muted" };
               return (
-                <div key={req.id} className="bg-[#161920] border border-[#222733] rounded-2xl p-4">
+                <div key={req.id} className="bg-card border border-border rounded-2xl p-4">
                   <div className="flex items-start justify-between gap-2 mb-2">
                     <div className="flex-1 min-w-0">
-                      <p className="text-white font-bold text-sm truncate">{req.title}</p>
-                      <p className="text-[#A5A9B5] text-xs mt-0.5">{req.category.name}</p>
+                      <p className="text-foreground font-bold text-sm truncate">{req.title}</p>
+                      <p className="text-muted-foreground text-xs mt-0.5">{req.category.name}</p>
                     </div>
                     <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${statusInfo.cls}`}>{statusInfo.label}</span>
                   </div>
-                  {req.description && <p className="text-[#A5A9B5] text-xs mb-2 line-clamp-2">{req.description}</p>}
-                  <div className="flex items-center justify-between text-xs text-[#A5A9B5]">
+                  {req.description && <p className="text-muted-foreground text-xs mb-2 line-clamp-2">{req.description}</p>}
+                  <div className="flex items-center justify-between text-xs text-muted-foreground">
                     <span>₹{req.suggestedPrice.toLocaleString()} / {req.suggestedPriceType}</span>
                     {req.suggestedDuration && <span>{req.suggestedDuration} min</span>}
                   </div>
-                  {req.adminNotes && <p className="text-[#A5A9B5] text-[10px] mt-1">Note: {req.adminNotes}</p>}
+                  {req.adminNotes && <p className="text-muted-foreground text-[10px] mt-1">Note: {req.adminNotes}</p>}
                 </div>
               );
             })}
@@ -2843,64 +2908,64 @@ function HelperServiceRequestsScreen({ onBack, toast }: { onBack: () => void; to
 
           {totalPages > 1 && (
             <div className="flex items-center justify-between mt-2">
-              <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1} className="px-4 py-2 rounded-xl bg-[#20242D] text-white text-xs font-semibold disabled:opacity-50">Previous</button>
-              <span className="text-[#A5A9B5] text-xs">Page {page} of {totalPages}</span>
-              <button onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page === totalPages} className="px-4 py-2 rounded-xl bg-[#586CFF] text-white text-xs font-semibold disabled:opacity-50">Next</button>
+              <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1} className="px-4 py-2 rounded-xl bg-muted text-foreground text-xs font-semibold disabled:opacity-50">Previous</button>
+              <span className="text-muted-foreground text-xs">Page {page} of {totalPages}</span>
+              <button onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page === totalPages} className="px-4 py-2 rounded-xl bg-primary text-white text-xs font-semibold disabled:opacity-50">Next</button>
             </div>
           )}
         </>
       )}
 
       {isFormOpen && (
-        <div className="absolute inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm px-5 pb-8">
-          <div className="bg-[#161920] border border-[#222733] rounded-3xl p-5 w-full max-h-[88vh] overflow-y-auto">
+        <div className="absolute inset-0 z-50 flex items-end justify-center bg-black/40 backdrop-blur-sm px-5 pb-8">
+          <div className="bg-card border border-border rounded-3xl p-5 w-full max-h-[88vh] overflow-y-auto shadow-xl">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-bold text-white" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>New Service Request</h2>
-              <button onClick={() => setIsFormOpen(false)} className="w-9 h-9 rounded-full bg-[#20242D] flex items-center justify-center active:scale-90 transition-transform">
-                <X size={16} className="text-white" />
+              <h2 className="text-xl font-bold text-foreground" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>New Service Request</h2>
+              <button onClick={() => setIsFormOpen(false)} className="w-9 h-9 rounded-full bg-muted flex items-center justify-center active:scale-90 transition-transform">
+                <X size={16} className="text-foreground" />
               </button>
             </div>
             <form onSubmit={handleSubmit} className="flex flex-col gap-3">
               <div>
-                <label className="block text-xs font-semibold uppercase tracking-[0.08em] text-[#A5A9B5] mb-1.5">Category <span className="text-[#EF4444]">*</span></label>
-                <select value={form.categoryId} onChange={(e) => setForm({ ...form, categoryId: e.target.value })} className="w-full rounded-xl border border-[#222733] bg-[#20242D] px-3 py-2.5 text-sm text-white outline-none focus:border-[#586CFF]" required>
+                <label className="block text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground mb-1.5">Category <span className="text-destructive">*</span></label>
+                <select value={form.categoryId} onChange={(e) => setForm({ ...form, categoryId: e.target.value })} className="w-full rounded-xl border border-border bg-muted px-3 py-2.5 text-sm text-foreground outline-none focus:border-primary" required>
                   <option value="">Select category</option>
                   {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-semibold uppercase tracking-[0.08em] text-[#A5A9B5] mb-1.5">Title <span className="text-[#EF4444]">*</span></label>
-                <input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} className="w-full rounded-xl border border-[#222733] bg-[#20242D] px-3 py-2.5 text-sm text-white outline-none placeholder:text-[#A5A9B5] focus:border-[#586CFF]" required />
+                <label className="block text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground mb-1.5">Title <span className="text-destructive">*</span></label>
+                <input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} className="w-full rounded-xl border border-border bg-muted px-3 py-2.5 text-sm text-foreground outline-none placeholder:text-muted-foreground focus:border-primary" required />
               </div>
               <div>
-                <label className="block text-xs font-semibold uppercase tracking-[0.08em] text-[#A5A9B5] mb-1.5">Description</label>
-                <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={3} className="w-full rounded-xl border border-[#222733] bg-[#20242D] px-3 py-2.5 text-sm text-white outline-none placeholder:text-[#A5A9B5] focus:border-[#586CFF] resize-none" />
+                <label className="block text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground mb-1.5">Description</label>
+                <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={3} className="w-full rounded-xl border border-border bg-muted px-3 py-2.5 text-sm text-foreground outline-none placeholder:text-muted-foreground focus:border-primary resize-none" />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-semibold uppercase tracking-[0.08em] text-[#A5A9B5] mb-1.5">Suggested Price (₹) <span className="text-[#EF4444]">*</span></label>
-                  <input type="number" min="0" value={form.suggestedPrice} onChange={(e) => setForm({ ...form, suggestedPrice: Number(e.target.value) })} className="w-full rounded-xl border border-[#222733] bg-[#20242D] px-3 py-2.5 text-sm text-white outline-none placeholder:text-[#A5A9B5] focus:border-[#586CFF]" required />
+                  <label className="block text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground mb-1.5">Suggested Price (₹) <span className="text-destructive">*</span></label>
+                  <input type="number" min="0" value={form.suggestedPrice} onChange={(e) => setForm({ ...form, suggestedPrice: Number(e.target.value) })} className="w-full rounded-xl border border-border bg-muted px-3 py-2.5 text-sm text-foreground outline-none placeholder:text-muted-foreground focus:border-primary" required />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold uppercase tracking-[0.08em] text-[#A5A9B5] mb-1.5">Price Type <span className="text-[#EF4444]">*</span></label>
-                  <select value={form.suggestedPriceType} onChange={(e) => setForm({ ...form, suggestedPriceType: e.target.value })} className="w-full rounded-xl border border-[#222733] bg-[#20242D] px-3 py-2.5 text-sm text-white outline-none focus:border-[#586CFF]" required>
+                  <label className="block text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground mb-1.5">Price Type <span className="text-destructive">*</span></label>
+                  <select value={form.suggestedPriceType} onChange={(e) => setForm({ ...form, suggestedPriceType: e.target.value })} className="w-full rounded-xl border border-border bg-muted px-3 py-2.5 text-sm text-foreground outline-none focus:border-primary" required>
                     <option value="FIXED">Fixed</option>
                     <option value="HOURLY">Hourly</option>
                   </select>
                 </div>
               </div>
               <div>
-                <label className="block text-xs font-semibold uppercase tracking-[0.08em] text-[#A5A9B5] mb-1.5">Suggested Duration (min)</label>
-                <input type="number" min="0" value={form.suggestedDuration ?? ""} onChange={(e) => setForm({ ...form, suggestedDuration: e.target.value ? Number(e.target.value) : undefined })} className="w-full rounded-xl border border-[#222733] bg-[#20242D] px-3 py-2.5 text-sm text-white outline-none placeholder:text-[#A5A9B5] focus:border-[#586CFF]" />
+                <label className="block text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground mb-1.5">Suggested Duration (min)</label>
+                <input type="number" min="0" value={form.suggestedDuration ?? ""} onChange={(e) => setForm({ ...form, suggestedDuration: e.target.value ? Number(e.target.value) : undefined })} className="w-full rounded-xl border border-border bg-muted px-3 py-2.5 text-sm text-foreground outline-none placeholder:text-muted-foreground focus:border-primary" />
               </div>
               {(submitError) && (
-                <div className="rounded-xl border border-[rgba(239,68,68,0.35)] bg-[rgba(239,68,68,0.08)] px-3 py-2 text-sm text-[#FCA5A5]">
+                <div className="rounded-xl border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
                   {submitError}
                 </div>
               )}
               <div className="flex gap-3 pt-2">
-                <button type="button" onClick={() => setIsFormOpen(false)} className="flex-1 h-12 rounded-2xl bg-[#20242D] text-white font-bold">Cancel</button>
-                <button type="submit" disabled={isSubmitting} className="flex-1 h-12 rounded-2xl font-bold text-white disabled:opacity-70" style={{ background:"linear-gradient(135deg,#586CFF 0%,#7E57FF 100%)" }}>
+                <button type="button" onClick={() => setIsFormOpen(false)} className="flex-1 h-12 rounded-2xl bg-muted text-foreground font-bold">Cancel</button>
+                <button type="submit" disabled={isSubmitting} className="flex-1 h-12 rounded-2xl font-bold text-white disabled:opacity-70" style={{ background:"linear-gradient(135deg,#7456D0 0%,#6648C2 100%)" }}>
                   {isSubmitting ? "Submitting..." : "Submit Request"}
                 </button>
               </div>
@@ -2920,9 +2985,9 @@ function AdminDashboardScreen({ onNavigate, toast }: { onNavigate: (s: Screen, i
   if (isLoading) {
     return (
       <div className="flex flex-col gap-4 pb-4 pt-2 animate-pulse">
-        <div className="h-6 bg-[#20242D] rounded w-32" />
+        <div className="h-6 bg-muted rounded w-32" />
         <div className="grid grid-cols-2 gap-3">
-          {Array.from({ length: 4 }).map((_, i) => <div key={i} className="h-24 bg-[#161920] border border-[#222733] rounded-2xl" />)}
+          {Array.from({ length: 4 }).map((_, i) => <div key={i} className="h-24 bg-muted border border-border rounded-2xl" />)}
         </div>
       </div>
     );
@@ -2931,10 +2996,10 @@ function AdminDashboardScreen({ onNavigate, toast }: { onNavigate: (s: Screen, i
   if (error) {
     return (
       <div className="flex flex-col gap-4 pb-4 pt-2">
-        <h2 className="font-bold text-white text-lg" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>Dashboard</h2>
-        <div className="rounded-2xl border border-[rgba(239,68,68,0.35)] bg-[rgba(239,68,68,0.08)] p-6 text-center">
-          <p className="text-[#FCA5A5] text-sm mb-3">{error}</p>
-          <button onClick={refetch} className="text-[#586CFF] text-sm font-semibold bg-[rgba(88,108,255,0.12)] px-4 py-2 rounded-xl">Retry</button>
+        <h2 className="font-bold text-foreground text-lg" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>Dashboard</h2>
+        <div className="rounded-2xl border border-destructive/30 bg-destructive/10 p-6 text-center">
+          <p className="text-destructive text-sm mb-3">{error}</p>
+          <button onClick={refetch} className="text-primary text-sm font-semibold bg-primary-soft px-4 py-2 rounded-xl">Retry</button>
         </div>
       </div>
     );
@@ -2943,52 +3008,52 @@ function AdminDashboardScreen({ onNavigate, toast }: { onNavigate: (s: Screen, i
   if (!stats) {
     return (
       <div className="flex flex-col gap-4 pb-4 pt-2">
-        <h2 className="font-bold text-white text-lg" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>Dashboard</h2>
-        <p className="text-[#A5A9B5] text-sm">No stats available.</p>
+        <h2 className="font-bold text-foreground text-lg" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>Dashboard</h2>
+        <p className="text-muted-foreground text-sm">No stats available.</p>
       </div>
     );
   }
 
   const cards = [
-    { label:"Total Users", value: stats.totalUsers.toLocaleString(), icon: Users, color: "#586CFF", bg: "rgba(88,108,255,0.12)" },
-    { label:"Helpers", value: stats.totalHelpers.toLocaleString(), icon: Shield, color: "#22C55E", bg: "rgba(34,197,94,0.12)" },
+    { label:"Total Users", value: stats.totalUsers.toLocaleString(), icon: Users, color: "#7456D0", bg: "rgba(116,86,208,0.12)" },
+    { label:"Helpers", value: stats.totalHelpers.toLocaleString(), icon: Shield, color: "#5BE7C4", bg: "rgba(91,231,196,0.12)" },
     { label:"Bookings", value: stats.totalBookings.toLocaleString(), icon: CalendarCheck, color: "#F59E0B", bg: "rgba(245,158,11,0.12)" },
-    { label:"Revenue", value: `₹${stats.totalRevenue.toLocaleString()}`, icon: TrendingUp, color: "#EC4899", bg: "rgba(236,72,153,0.12)" },
+    { label:"Revenue", value: `₹${stats.totalRevenue.toLocaleString()}`, icon: TrendingUp, color: "#4FC0E8", bg: "rgba(79,192,232,0.12)" },
   ];
 
   return (
     <div className="flex flex-col gap-5 pb-4 pt-2 animate-fade-in">
       <div className="flex items-center justify-between">
-        <h2 className="font-bold text-white text-lg" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>Dashboard</h2>
-        <button onClick={refetch} className="text-[#586CFF] text-xs font-semibold">Refresh</button>
+        <h2 className="font-bold text-foreground text-lg" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>Dashboard</h2>
+        <button onClick={refetch} className="text-primary text-xs font-semibold">Refresh</button>
       </div>
 
       <div className="grid grid-cols-2 gap-3">
         {cards.map((c) => (
-          <div key={c.label} className="bg-[#161920] border border-[#222733] rounded-2xl p-4">
+          <div key={c.label} className="bg-card border border-border rounded-2xl p-4">
             <div className="w-10 h-10 rounded-xl flex items-center justify-center mb-3" style={{ background: c.bg }}>
               <c.icon size={20} style={{ color: c.color }} />
             </div>
-            <p className="text-white font-bold text-lg" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>{c.value}</p>
-            <p className="text-[#A5A9B5] text-xs mt-0.5">{c.label}</p>
+            <p className="text-foreground font-bold text-lg" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>{c.value}</p>
+            <p className="text-muted-foreground text-xs mt-0.5">{c.label}</p>
           </div>
         ))}
       </div>
 
       <div className="flex flex-col gap-3 mt-2">
         {[
-          { label:"Users",            screen:"admin-users"            as Screen, icon: Users,         color:"#586CFF" },
+          { label:"Users",            screen:"admin-users"            as Screen, icon: Users,         color:"#7456D0" },
           { label:"Bookings",         screen:"admin-bookings"         as Screen, icon: CalendarCheck,  color:"#F59E0B" },
-          { label:"Categories",       screen:"admin-categories"       as Screen, icon: Folder,         color:"#22C55E" },
-          { label:"Services",         screen:"admin-services"         as Screen, icon: Sparkles,       color:"#7E57FF" },
-          { label:"Service Requests", screen:"admin-service-requests" as Screen, icon: ClipboardList,  color:"#EC4899" },
+          { label:"Categories",       screen:"admin-categories"       as Screen, icon: Folder,         color:"#5BE7C4" },
+          { label:"Services",         screen:"admin-services"         as Screen, icon: Sparkles,       color:"#4FC0E8" },
+          { label:"Service Requests", screen:"admin-service-requests" as Screen, icon: ClipboardList,  color:"#7456D0" },
         ].map((item) => (
-          <button key={item.screen} id={`admin-dash-nav-${item.screen}`} onClick={() => onNavigate(item.screen)} className="w-full bg-[#161920] border border-[#222733] rounded-2xl p-4 flex items-center gap-4 active:scale-[0.98] transition-transform">
+          <button key={item.screen} id={`admin-dash-nav-${item.screen}`} onClick={() => onNavigate(item.screen)} className="w-full bg-card border border-border rounded-2xl p-4 flex items-center gap-4 active:scale-[0.98] transition-transform hover:bg-muted">
             <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: `${item.color}20` }}>
               <item.icon size={20} style={{ color: item.color }} />
             </div>
-            <span className="text-white font-bold text-sm flex-1 text-left">{item.label}</span>
-            <ChevronRight size={16} className="text-[#A5A9B5]" />
+            <span className="text-foreground font-bold text-sm flex-1 text-left">{item.label}</span>
+            <ChevronRight size={16} className="text-muted-foreground" />
           </button>
         ))}
       </div>
@@ -3019,9 +3084,9 @@ function AdminUsersScreen({ onBack, toast: _toast }: { onBack: () => void; toast
   });
 
   const roleColors: Record<string, { bg: string; text: string; avatarBg: string }> = {
-    ADMIN:    { bg: "rgba(245,158,11,0.15)",  text: "#FBBF24", avatarBg: "rgba(245,158,11,0.25)"  },
-    HELPER:   { bg: "rgba(34,197,94,0.15)",   text: "#22C55E", avatarBg: "rgba(34,197,94,0.25)"   },
-    CUSTOMER: { bg: "rgba(88,108,255,0.15)",  text: "#586CFF", avatarBg: "rgba(88,108,255,0.25)"  },
+    ADMIN:    { bg: "rgba(245,158,11,0.15)",  text: "#F59E0B", avatarBg: "rgba(245,158,11,0.25)"  },
+    HELPER:   { bg: "rgba(91,231,196,0.15)",  text: "#0B3D2E", avatarBg: "rgba(91,231,196,0.25)"  },
+    CUSTOMER: { bg: "rgba(116,86,208,0.15)", text: "#7456D0", avatarBg: "rgba(116,86,208,0.25)" },
   };
 
   const getRoleStyle = (role: string) => roleColors[role] ?? roleColors.CUSTOMER;
@@ -3042,16 +3107,16 @@ function AdminUsersScreen({ onBack, toast: _toast }: { onBack: () => void; toast
         <button
           id="admin-users-back-btn"
           onClick={onBack}
-          className="w-10 h-10 rounded-full bg-[#20242D] flex items-center justify-center active:scale-90 transition-transform"
+          className="w-10 h-10 rounded-full bg-muted flex items-center justify-center active:scale-90 transition-transform"
         >
-          <ArrowLeft size={18} className="text-white" />
+          <ArrowLeft size={18} className="text-foreground" />
         </button>
         <div className="flex-1 min-w-0">
-          <h2 className="font-bold text-white text-lg" style={{ fontFamily: "'Plus Jakarta Sans',sans-serif" }}>
+          <h2 className="font-bold text-foreground text-lg" style={{ fontFamily: "'Plus Jakarta Sans',sans-serif" }}>
             Users
           </h2>
           {!isLoading && !error && (
-            <p className="text-[#A5A9B5] text-xs">
+            <p className="text-muted-foreground text-xs">
               {total.toLocaleString()} total · showing {filtered.length} on this page
             </p>
           )}
@@ -3059,7 +3124,7 @@ function AdminUsersScreen({ onBack, toast: _toast }: { onBack: () => void; toast
         <button
           id="admin-users-refresh-btn"
           onClick={refetch}
-          className="text-[#586CFF] text-xs font-semibold bg-[rgba(88,108,255,0.10)] px-3 py-1.5 rounded-xl active:scale-95 transition-transform"
+          className="text-primary text-xs font-semibold bg-primary-soft px-3 py-1.5 rounded-xl active:scale-95 transition-transform"
         >
           Refresh
         </button>
@@ -3067,19 +3132,19 @@ function AdminUsersScreen({ onBack, toast: _toast }: { onBack: () => void; toast
 
       {/* ── Search ── */}
       <div className="relative">
-        <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#A5A9B5] pointer-events-none" />
+        <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
         <input
           id="admin-users-search"
           type="text"
           placeholder="Search by name or email…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="w-full rounded-xl border border border-[#222733] bg-[#161920] pl-9 pr-3 py-2.5 text-sm text-white outline-none placeholder:text-[#A5A9B5] focus:border-[#586CFF] transition-colors"
+          className="w-full rounded-xl border border-border bg-card pl-9 pr-3 py-2.5 text-sm text-foreground outline-none placeholder:text-muted-foreground focus:border-primary transition-colors"
         />
         {search && (
           <button
             onClick={() => setSearch("")}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-[#A5A9B5] hover:text-white"
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
           >
             <X size={14} />
           </button>
@@ -3095,8 +3160,8 @@ function AdminUsersScreen({ onBack, toast: _toast }: { onBack: () => void; toast
             onClick={() => { setRoleFilter(tab); setPage(1); }}
             className={`shrink-0 px-3 py-1.5 rounded-xl text-xs font-bold transition-colors ${
               roleFilter === tab
-                ? "bg-[#586CFF] text-white"
-                : "bg-[#161920] border border-[#222733] text-[#A5A9B5] hover:text-white"
+                ? "bg-primary text-white"
+                : "bg-card border border-border text-muted-foreground hover:text-foreground"
             }`}
           >
             {tab === "ALL" ? "All Roles" : tab}
@@ -3108,29 +3173,29 @@ function AdminUsersScreen({ onBack, toast: _toast }: { onBack: () => void; toast
       {isLoading ? (
         <div className="flex flex-col gap-3">
           {Array.from({ length: 6 }).map((_, i) => (
-            <div key={i} className="h-[72px] bg-[#161920] border border-[#222733] rounded-2xl animate-pulse" />
+            <div key={i} className="h-[72px] bg-muted border border-border rounded-2xl animate-pulse" />
           ))}
         </div>
       ) : error ? (
-        <div className="rounded-2xl border border-[rgba(239,68,68,0.35)] bg-[rgba(239,68,68,0.08)] p-6 text-center">
-          <p className="text-[#FCA5A5] text-sm mb-3">{error}</p>
+        <div className="rounded-2xl border border-destructive/30 bg-destructive/10 p-6 text-center">
+          <p className="text-destructive text-sm mb-3">{error}</p>
           <button
             onClick={refetch}
-            className="text-[#586CFF] text-sm font-semibold bg-[rgba(88,108,255,0.12)] px-4 py-2 rounded-xl"
+            className="text-primary text-sm font-semibold bg-primary-soft px-4 py-2 rounded-xl"
           >
             Retry
           </button>
         </div>
       ) : filtered.length === 0 ? (
         <div className="text-center py-12">
-          <Users size={40} className="text-[#A5A9B5] mx-auto mb-3 opacity-30" />
-          <p className="text-[#A5A9B5] text-sm">
+          <Users size={40} className="text-muted-foreground mx-auto mb-3 opacity-30" />
+          <p className="text-muted-foreground text-sm">
             {search || roleFilter !== "ALL" ? "No users match your filters" : "No users found"}
           </p>
           {(search || roleFilter !== "ALL") && (
             <button
               onClick={() => { setSearch(""); setRoleFilter("ALL"); }}
-              className="mt-3 text-[#586CFF] text-sm font-semibold"
+              className="mt-3 text-primary text-sm font-semibold"
             >
               Clear filters
             </button>
@@ -3147,11 +3212,11 @@ function AdminUsersScreen({ onBack, toast: _toast }: { onBack: () => void; toast
                   key={u.id}
                   id={`admin-user-card-${u.id}`}
                   onClick={() => setDetailUser(u)}
-                  className="bg-[#161920] border border-[#222733] rounded-2xl p-4 flex items-center gap-3 w-full text-left active:scale-[0.98] transition-transform hover:bg-[#1c2029]"
+                  className="bg-card border border-border rounded-2xl p-4 flex items-center gap-3 w-full text-left active:scale-[0.98] transition-transform hover:bg-muted"
                 >
                   {/* Avatar */}
                   <div
-                    className="w-11 h-11 rounded-full flex items-center justify-center text-white font-bold text-sm shrink-0"
+                    className="w-11 h-11 rounded-full flex items-center justify-center font-bold text-sm shrink-0"
                     style={{ background: rs.avatarBg, color: rs.text }}
                   >
                     {initials}
@@ -3159,11 +3224,11 @@ function AdminUsersScreen({ onBack, toast: _toast }: { onBack: () => void; toast
 
                   {/* Name + email */}
                   <div className="flex-1 min-w-0">
-                    <p className="text-white font-bold text-sm truncate">
+                    <p className="text-foreground font-bold text-sm truncate">
                       {u.firstName} {u.lastName}
                     </p>
-                    <p className="text-[#A5A9B5] text-xs truncate">{u.email}</p>
-                    <p className="text-[#A5A9B5] text-[10px] mt-0.5">
+                    <p className="text-muted-foreground text-xs truncate">{u.email}</p>
+                    <p className="text-muted-foreground text-[10px] mt-0.5">
                       Joined {formatDate(u.createdAt)}
                     </p>
                   </div>
@@ -3179,14 +3244,14 @@ function AdminUsersScreen({ onBack, toast: _toast }: { onBack: () => void; toast
                     <span
                       className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
                         u.isActive
-                          ? "bg-[rgba(34,197,94,0.15)] text-[#22C55E]"
-                          : "bg-[rgba(239,68,68,0.15)] text-[#EF4444]"
+                          ? "bg-accent-soft text-[#0B3D2E]"
+                          : "bg-destructive/10 text-destructive"
                       }`}
                     >
                       {u.isActive ? "Active" : "Inactive"}
                     </span>
                     {u.isVerified && (
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[rgba(34,197,94,0.10)] text-[#22C55E] flex items-center gap-0.5">
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-accent-soft text-[#0B3D2E] flex items-center gap-0.5">
                         <Check size={9} /> Verified
                       </span>
                     )}
@@ -3203,18 +3268,18 @@ function AdminUsersScreen({ onBack, toast: _toast }: { onBack: () => void; toast
                 id="admin-users-prev-btn"
                 onClick={() => { setPage((p) => Math.max(1, p - 1)); }}
                 disabled={page === 1}
-                className="px-4 py-2 rounded-xl bg-[#20242D] text-white text-xs font-semibold disabled:opacity-40"
+                className="px-4 py-2 rounded-xl bg-muted text-foreground text-xs font-semibold disabled:opacity-40"
               >
                 Previous
               </button>
-              <span className="text-[#A5A9B5] text-xs">
+              <span className="text-muted-foreground text-xs">
                 Page {page} of {totalPages}
               </span>
               <button
                 id="admin-users-next-btn"
                 onClick={() => { setPage((p) => Math.min(totalPages, p + 1)); }}
                 disabled={page === totalPages}
-                className="px-4 py-2 rounded-xl bg-[#586CFF] text-white text-xs font-semibold disabled:opacity-40"
+                className="px-4 py-2 rounded-xl bg-primary text-white text-xs font-semibold disabled:opacity-40"
               >
                 Next
               </button>
@@ -3230,17 +3295,17 @@ function AdminUsersScreen({ onBack, toast: _toast }: { onBack: () => void; toast
         const initials = `${u.firstName?.[0] ?? ""}${u.lastName?.[0] ?? ""}`.toUpperCase() || "?";
         return (
           <div
-            className="absolute inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm px-5 pb-8"
+            className="absolute inset-0 z-50 flex items-end justify-center bg-black/40 backdrop-blur-sm px-5 pb-8"
             onClick={() => setDetailUser(null)}
           >
             <div
-              className="bg-[#161920] border border-[#222733] rounded-3xl p-5 w-full max-h-[80vh] overflow-y-auto"
+              className="bg-card border border-border rounded-3xl p-5 w-full max-h-[80vh] overflow-y-auto shadow-xl"
               onClick={(e) => e.stopPropagation()}
             >
               {/* Modal header */}
               <div className="flex items-center justify-between mb-5">
                 <h3
-                  className="text-lg font-bold text-white"
+                  className="text-lg font-bold text-foreground"
                   style={{ fontFamily: "'Plus Jakarta Sans',sans-serif" }}
                 >
                   User Details
@@ -3248,9 +3313,9 @@ function AdminUsersScreen({ onBack, toast: _toast }: { onBack: () => void; toast
                 <button
                   id="admin-user-detail-close"
                   onClick={() => setDetailUser(null)}
-                  className="w-9 h-9 rounded-full bg-[#20242D] flex items-center justify-center active:scale-90 transition-transform"
+                  className="w-9 h-9 rounded-full bg-muted flex items-center justify-center active:scale-90 transition-transform"
                 >
-                  <X size={16} className="text-white" />
+                  <X size={16} className="text-foreground" />
                 </button>
               </div>
 
@@ -3262,10 +3327,10 @@ function AdminUsersScreen({ onBack, toast: _toast }: { onBack: () => void; toast
                 >
                   {initials}
                 </div>
-                <p className="text-white font-bold text-base" style={{ fontFamily: "'Plus Jakarta Sans',sans-serif" }}>
+                <p className="text-foreground font-bold text-base" style={{ fontFamily: "'Plus Jakarta Sans',sans-serif" }}>
                   {u.firstName} {u.lastName}
                 </p>
-                <p className="text-[#A5A9B5] text-sm mt-0.5">{u.email}</p>
+                <p className="text-muted-foreground text-sm mt-0.5">{u.email}</p>
 
                 <div className="flex gap-2 mt-3 flex-wrap justify-center">
                   <span
@@ -3277,18 +3342,18 @@ function AdminUsersScreen({ onBack, toast: _toast }: { onBack: () => void; toast
                   <span
                     className={`text-xs font-bold px-3 py-1 rounded-full ${
                       u.isActive
-                        ? "bg-[rgba(34,197,94,0.15)] text-[#22C55E]"
-                        : "bg-[rgba(239,68,68,0.15)] text-[#EF4444]"
+                        ? "bg-accent-soft text-[#0B3D2E]"
+                        : "bg-destructive/10 text-destructive"
                     }`}
                   >
                     {u.isActive ? "Active" : "Inactive"}
                   </span>
                   {u.isVerified ? (
-                    <span className="text-xs font-bold px-3 py-1 rounded-full bg-[rgba(34,197,94,0.12)] text-[#22C55E] flex items-center gap-1">
+                    <span className="text-xs font-bold px-3 py-1 rounded-full bg-accent-soft text-[#0B3D2E] flex items-center gap-1">
                       <CheckCircle2 size={12} /> Email Verified
                     </span>
                   ) : (
-                    <span className="text-xs font-bold px-3 py-1 rounded-full bg-[rgba(239,68,68,0.12)] text-[#EF4444]">
+                    <span className="text-xs font-bold px-3 py-1 rounded-full bg-destructive/10 text-destructive">
                       Unverified
                     </span>
                   )}
@@ -3301,11 +3366,11 @@ function AdminUsersScreen({ onBack, toast: _toast }: { onBack: () => void; toast
                   { label: "User ID", value: u.id },
                   { label: "Joined", value: formatDate(u.createdAt) },
                 ].map(({ label, value }) => (
-                  <div key={label} className="bg-[#20242D] rounded-xl px-4 py-3 flex items-center justify-between gap-3">
-                    <span className="text-[#A5A9B5] text-xs font-semibold uppercase tracking-[0.08em]">
+                  <div key={label} className="bg-muted rounded-xl px-4 py-3 flex items-center justify-between gap-3">
+                    <span className="text-muted-foreground text-xs font-semibold uppercase tracking-[0.08em]">
                       {label}
                     </span>
-                    <span className="text-white text-sm font-medium text-right break-all">{value}</span>
+                    <span className="text-foreground text-sm font-medium text-right break-all">{value}</span>
                   </div>
                 ))}
               </div>
@@ -3313,7 +3378,7 @@ function AdminUsersScreen({ onBack, toast: _toast }: { onBack: () => void; toast
               <button
                 id="admin-user-detail-dismiss"
                 onClick={() => setDetailUser(null)}
-                className="w-full mt-5 rounded-2xl bg-[#20242D] py-3 text-white font-semibold text-sm active:scale-[0.98] transition-transform"
+                className="w-full mt-5 rounded-2xl bg-muted py-3 text-foreground font-semibold text-sm active:scale-[0.98] transition-transform"
               >
                 Close
               </button>
@@ -3327,12 +3392,12 @@ function AdminUsersScreen({ onBack, toast: _toast }: { onBack: () => void; toast
 
 // BookingStatus enum: PENDING | ACCEPTED | ONGOING | COMPLETED | CANCELLED | REFUNDED
 const BOOKING_STATUS_STYLES: Record<string, string> = {
-  PENDING:   "bg-[rgba(245,158,11,0.15)] text-[#FBBF24]",
-  ACCEPTED:  "bg-[rgba(88,108,255,0.15)] text-[#586CFF]",
-  ONGOING:   "bg-[rgba(249,115,22,0.15)] text-[#F97316]",
-  COMPLETED: "bg-[rgba(34,197,94,0.15)] text-[#22C55E]",
-  CANCELLED: "bg-[rgba(255,255,255,0.08)] text-[#A5A9B5]",
-  REFUNDED:  "bg-[rgba(168,85,247,0.15)] text-[#7E57FF]",
+  PENDING:   "bg-[rgba(245,158,11,0.15)] text-[#F59E0B]",
+  ACCEPTED:  "bg-primary-soft text-primary",
+  ONGOING:   "bg-[rgba(79,192,232,0.15)] text-[#4FC0E8]",
+  COMPLETED: "bg-accent-soft text-[#0B3D2E]",
+  CANCELLED: "bg-muted text-muted-foreground",
+  REFUNDED:  "bg-[rgba(116,86,208,0.12)] text-primary",
 };
 
 function AdminBookingsScreen({ onBack, toast }: { onBack: () => void; toast: (msg: string, color?: string) => void }) {
@@ -3349,25 +3414,25 @@ function AdminBookingsScreen({ onBack, toast }: { onBack: () => void; toast: (ms
   return (
     <div className="flex flex-col gap-4 pb-4 pt-2 animate-fade-in">
       <div className="flex items-center gap-4">
-        <button onClick={onBack} className="w-10 h-10 rounded-full bg-[#20242D] flex items-center justify-center active:scale-90 transition-transform">
-          <ArrowLeft size={18} className="text-white" />
+        <button onClick={onBack} className="w-10 h-10 rounded-full bg-muted flex items-center justify-center active:scale-90 transition-transform">
+          <ArrowLeft size={18} className="text-foreground" />
         </button>
-        <h2 className="font-bold text-white text-lg" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>Bookings</h2>
+        <h2 className="font-bold text-foreground text-lg" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>Bookings</h2>
       </div>
 
       {isLoading ? (
         <div className="flex flex-col gap-3">
-          {Array.from({ length: 5 }).map((_, i) => <div key={i} className="h-24 bg-[#161920] border border-[#222733] rounded-2xl animate-pulse" />)}
+          {Array.from({ length: 5 }).map((_, i) => <div key={i} className="h-24 bg-muted border border-border rounded-2xl animate-pulse" />)}
         </div>
       ) : error ? (
-        <div className="rounded-2xl border border-[rgba(239,68,68,0.35)] bg-[rgba(239,68,68,0.08)] p-6 text-center">
-          <p className="text-[#FCA5A5] text-sm mb-3">{error}</p>
-          <button onClick={refetch} className="text-[#586CFF] text-sm font-semibold bg-[rgba(88,108,255,0.12)] px-4 py-2 rounded-xl">Retry</button>
+        <div className="rounded-2xl border border-destructive/30 bg-destructive/10 p-6 text-center">
+          <p className="text-destructive text-sm mb-3">{error}</p>
+          <button onClick={refetch} className="text-primary text-sm font-semibold bg-primary-soft px-4 py-2 rounded-xl">Retry</button>
         </div>
       ) : bookings.length === 0 ? (
         <div className="text-center py-12">
-          <CalendarCheck size={40} className="text-[#A5A9B5] mx-auto mb-3 opacity-30" />
-          <p className="text-[#A5A9B5]">No bookings found</p>
+          <CalendarCheck size={40} className="text-muted-foreground mx-auto mb-3 opacity-30" />
+          <p className="text-muted-foreground">No bookings found</p>
         </div>
       ) : (
         <>
@@ -3376,19 +3441,19 @@ function AdminBookingsScreen({ onBack, toast }: { onBack: () => void; toast: (ms
               const customerName = `${b.customer.firstName} ${b.customer.lastName}`.trim();
               const helperName = `${b.helper.user.firstName} ${b.helper.user.lastName}`.trim();
               return (
-              <div key={b.id} className="bg-[#161920] border border-[#222733] rounded-2xl p-4">
+              <div key={b.id} className="bg-card border border-border rounded-2xl p-4">
                   <div className="flex items-start justify-between gap-2 mb-2">
                     <div className="flex-1 min-w-0">
-                      <p className="text-white font-bold text-sm truncate">{b.service.title}</p>
-                      <p className="text-[#A5A9B5] text-xs mt-0.5">Customer: {customerName} · Helper: {helperName}</p>
+                      <p className="text-foreground font-bold text-sm truncate">{b.service.title}</p>
+                      <p className="text-muted-foreground text-xs mt-0.5">Customer: {customerName} · Helper: {helperName}</p>
                     </div>
-                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${BOOKING_STATUS_STYLES[b.status] ?? "bg-[rgba(255,255,255,0.08)] text-[#A5A9B5]"}`}>{b.status}</span>
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${BOOKING_STATUS_STYLES[b.status] ?? "bg-muted text-muted-foreground"}`}>{b.status}</span>
                   </div>
-                  <div className="flex items-center justify-between text-xs text-[#A5A9B5]">
+                  <div className="flex items-center justify-between text-xs text-muted-foreground">
                     <span>{formatDate(b.bookingDate)}</span>
-                    <span className="text-white font-bold">₹{b.totalAmount.toLocaleString()}</span>
+                    <span className="text-foreground font-bold">₹{b.totalAmount.toLocaleString()}</span>
                   </div>
-                  {b.payment && <p className="text-[10px] text-[#A5A9B5] mt-1">Payment: {b.payment.status}</p>}
+                  {b.payment && <p className="text-[10px] text-muted-foreground mt-1">Payment: {b.payment.status}</p>}
                 </div>
               );
             })}
@@ -3396,9 +3461,9 @@ function AdminBookingsScreen({ onBack, toast }: { onBack: () => void; toast: (ms
 
           {totalPages > 1 && (
             <div className="flex items-center justify-between mt-2">
-              <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1} className="px-4 py-2 rounded-xl bg-[#20242D] text-white text-xs font-semibold disabled:opacity-50">Previous</button>
-              <span className="text-[#A5A9B5] text-xs">Page {page} of {totalPages}</span>
-              <button onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page === totalPages} className="px-4 py-2 rounded-xl bg-[#586CFF] text-white text-xs font-semibold disabled:opacity-50">Next</button>
+              <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1} className="px-4 py-2 rounded-xl bg-muted text-foreground text-xs font-semibold disabled:opacity-50">Previous</button>
+              <span className="text-muted-foreground text-xs">Page {page} of {totalPages}</span>
+              <button onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page === totalPages} className="px-4 py-2 rounded-xl bg-primary text-white text-xs font-semibold disabled:opacity-50">Next</button>
             </div>
           )}
         </>
@@ -3442,10 +3507,10 @@ function AdminCategoriesScreen({ onBack, toast }: { onBack: () => void; toast: (
     try {
       if (editingCategory) {
         await update(editingCategory.id, form);
-        toast("Category updated.", "#22C55E");
+        toast("Category updated.", "#5BE7C4");
       } else {
         await create(form);
-        toast("Category created.", "#22C55E");
+        toast("Category created.", "#5BE7C4");
       }
       setIsFormOpen(false);
     } catch (err) {
@@ -3476,21 +3541,21 @@ function AdminCategoriesScreen({ onBack, toast }: { onBack: () => void; toast: (
           <button
             id="admin-categories-back-btn"
             onClick={onBack}
-            className="w-10 h-10 rounded-full bg-[#20242D] flex items-center justify-center active:scale-90 transition-transform"
+            className="w-10 h-10 rounded-full bg-muted flex items-center justify-center active:scale-90 transition-transform"
           >
-            <ArrowLeft size={18} className="text-white" />
+            <ArrowLeft size={18} className="text-foreground" />
           </button>
           <div>
-            <h2 className="font-bold text-white text-lg" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>Categories</h2>
+            <h2 className="font-bold text-foreground text-lg" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>Categories</h2>
             {!isLoading && !error && (
-              <p className="text-[#A5A9B5] text-xs">{categories.length} total</p>
+              <p className="text-muted-foreground text-xs">{categories.length} total</p>
             )}
           </div>
         </div>
         <button
           id="admin-categories-add-btn"
           onClick={openCreate}
-          className="flex items-center gap-2 rounded-xl bg-[#586CFF] px-3 py-2 text-xs font-bold text-white active:scale-95 transition-transform"
+          className="flex items-center gap-2 rounded-xl bg-primary px-3 py-2 text-xs font-bold text-white active:scale-95 transition-transform"
         >
           <Plus size={14} /> Add
         </button>
@@ -3499,46 +3564,46 @@ function AdminCategoriesScreen({ onBack, toast }: { onBack: () => void; toast: (
       {/* ── Body ── */}
       {isLoading ? (
         <div className="flex flex-col gap-3">
-          {Array.from({ length: 5 }).map((_, i) => <div key={i} className="h-20 bg-[#161920] border border-[#222733] rounded-2xl animate-pulse" />)}
+          {Array.from({ length: 5 }).map((_, i) => <div key={i} className="h-20 bg-muted border border-border rounded-2xl animate-pulse" />)}
         </div>
       ) : error ? (
-        <div className="rounded-2xl border border-[rgba(239,68,68,0.35)] bg-[rgba(239,68,68,0.08)] p-6 text-center">
-          <p className="text-[#FCA5A5] text-sm mb-3">{error}</p>
-          <button onClick={refetch} className="text-[#586CFF] text-sm font-semibold bg-[rgba(88,108,255,0.12)] px-4 py-2 rounded-xl">Retry</button>
+        <div className="rounded-2xl border border-destructive/30 bg-destructive/10 p-6 text-center">
+          <p className="text-destructive text-sm mb-3">{error}</p>
+          <button onClick={refetch} className="text-primary text-sm font-semibold bg-primary-soft px-4 py-2 rounded-xl">Retry</button>
         </div>
       ) : categories.length === 0 ? (
         <div className="text-center py-12">
-          <Folder size={40} className="text-[#A5A9B5] mx-auto mb-3 opacity-30" />
-          <p className="text-[#A5A9B5]">No categories yet</p>
-          <button onClick={openCreate} className="mt-3 text-[#586CFF] text-sm font-semibold">Create the first category</button>
+          <Folder size={40} className="text-muted-foreground mx-auto mb-3 opacity-30" />
+          <p className="text-muted-foreground">No categories yet</p>
+          <button onClick={openCreate} className="mt-3 text-primary text-sm font-semibold">Create the first category</button>
         </div>
       ) : (
         <div className="flex flex-col gap-3">
           {categories.map((cat) => (
-            <div key={cat.id} id={`admin-category-card-${cat.id}`} className="bg-[#161920] border border-[#222733] rounded-2xl p-4">
+            <div key={cat.id} id={`admin-category-card-${cat.id}`} className="bg-card border border-border rounded-2xl p-4">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2 mb-1">
                     <span className="text-lg">{cat.icon || "📂"}</span>
-                    <p className="text-white font-bold text-sm">{cat.name}</p>
+                    <p className="text-foreground font-bold text-sm">{cat.name}</p>
                   </div>
-                  {cat.description && <p className="text-[#A5A9B5] text-xs leading-relaxed">{cat.description}</p>}
-                  <p className="text-[#A5A9B5] text-[10px] mt-1">ID: {cat.id.slice(0, 8)}…</p>
+                  {cat.description && <p className="text-muted-foreground text-xs leading-relaxed">{cat.description}</p>}
+                  <p className="text-muted-foreground text-[10px] mt-1">ID: {cat.id.slice(0, 8)}…</p>
                 </div>
                 <div className="flex gap-2 shrink-0">
                   <button
                     id={`admin-category-edit-${cat.id}`}
                     onClick={() => openEdit(cat)}
-                    className="w-8 h-8 rounded-lg bg-[#20242D] flex items-center justify-center active:scale-90 transition-transform"
+                    className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center active:scale-90 transition-transform"
                   >
-                    <Edit2 size={14} className="text-white" />
+                    <Edit2 size={14} className="text-foreground" />
                   </button>
                   <button
                     id={`admin-category-delete-${cat.id}`}
                     onClick={() => setDeleteConfirmId(cat.id)}
-                    className="w-8 h-8 rounded-lg bg-[rgba(239,68,68,0.12)] flex items-center justify-center active:scale-90 transition-transform"
+                    className="w-8 h-8 rounded-lg bg-destructive/10 flex items-center justify-center active:scale-90 transition-transform"
                   >
-                    <Trash2 size={14} className="text-[#EF4444]" />
+                    <Trash2 size={14} className="text-destructive" />
                   </button>
                 </div>
               </div>
@@ -3549,62 +3614,62 @@ function AdminCategoriesScreen({ onBack, toast }: { onBack: () => void; toast: (
 
       {/* ── Create/Edit form modal ── */}
       {isFormOpen && (
-        <div className="absolute inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm px-5 pb-8">
-          <div className="bg-[#161920] border border-[#222733] rounded-3xl p-5 w-full max-h-[88vh] overflow-y-auto">
+        <div className="absolute inset-0 z-50 flex items-end justify-center bg-black/40 backdrop-blur-sm px-5 pb-8">
+          <div className="bg-card border border-border rounded-3xl p-5 w-full max-h-[88vh] overflow-y-auto shadow-xl">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-bold text-white" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>{editingCategory ? "Edit Category" : "New Category"}</h2>
+              <h2 className="text-xl font-bold text-foreground" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>{editingCategory ? "Edit Category" : "New Category"}</h2>
               <button
                 id="admin-category-form-close"
                 onClick={() => setIsFormOpen(false)}
-                className="w-9 h-9 rounded-full bg-[#20242D] flex items-center justify-center active:scale-90 transition-transform"
+                className="w-9 h-9 rounded-full bg-muted flex items-center justify-center active:scale-90 transition-transform"
               >
-                <X size={16} className="text-white" />
+                <X size={16} className="text-foreground" />
               </button>
             </div>
             <form onSubmit={handleSubmit} className="flex flex-col gap-3">
               <div>
-                <label className="block text-xs font-semibold uppercase tracking-[0.08em] text-[#A5A9B5] mb-1.5">Name <span className="text-[#EF4444]">*</span></label>
+                <label className="block text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground mb-1.5">Name <span className="text-destructive">*</span></label>
                 <input
                   id="admin-category-form-name"
                   value={form.name}
                   onChange={(e) => setForm({ ...form, name: e.target.value })}
-                  className="w-full rounded-xl border border-[#222733] bg-[#20242D] px-3 py-2.5 text-sm text-white outline-none placeholder:text-[#A5A9B5] focus:border-[#586CFF]"
+                  className="w-full rounded-xl border border-border bg-muted px-3 py-2.5 text-sm text-foreground outline-none placeholder:text-muted-foreground focus:border-primary"
                   required
                 />
               </div>
               <div>
-                <label className="block text-xs font-semibold uppercase tracking-[0.08em] text-[#A5A9B5] mb-1.5">Description</label>
+                <label className="block text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground mb-1.5">Description</label>
                 <textarea
                   id="admin-category-form-description"
                   value={form.description}
                   onChange={(e) => setForm({ ...form, description: e.target.value })}
                   rows={3}
-                  className="w-full rounded-xl border border-[#222733] bg-[#20242D] px-3 py-2.5 text-sm text-white outline-none placeholder:text-[#A5A9B5] focus:border-[#586CFF] resize-none"
+                  className="w-full rounded-xl border border-border bg-muted px-3 py-2.5 text-sm text-foreground outline-none placeholder:text-muted-foreground focus:border-primary resize-none"
                 />
               </div>
               <div>
-                <label className="block text-xs font-semibold uppercase tracking-[0.08em] text-[#A5A9B5] mb-1.5">Icon <span className="text-[#A5A9B5] text-[10px] normal-case">(emoji)</span></label>
+                <label className="block text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground mb-1.5">Icon <span className="text-muted-foreground text-[10px] normal-case">(emoji)</span></label>
                 <input
                   id="admin-category-form-icon"
                   value={form.icon}
                   onChange={(e) => setForm({ ...form, icon: e.target.value })}
                   placeholder="e.g. 🧹"
-                  className="w-full rounded-xl border border-[#222733] bg-[#20242D] px-3 py-2.5 text-sm text-white outline-none placeholder:text-[#A5A9B5] focus:border-[#586CFF]"
+                  className="w-full rounded-xl border border-border bg-muted px-3 py-2.5 text-sm text-foreground outline-none placeholder:text-muted-foreground focus:border-primary"
                 />
               </div>
               {submitError && (
-                <div className="rounded-xl border border-[rgba(239,68,68,0.35)] bg-[rgba(239,68,68,0.08)] px-3 py-2 text-sm text-[#FCA5A5]">
+                <div className="rounded-xl border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
                   {submitError}
                 </div>
               )}
               <div className="flex gap-3 pt-2">
-                <button type="button" onClick={() => setIsFormOpen(false)} className="flex-1 h-12 rounded-2xl bg-[#20242D] text-white font-bold">Cancel</button>
+                <button type="button" onClick={() => setIsFormOpen(false)} className="flex-1 h-12 rounded-2xl bg-muted text-foreground font-bold">Cancel</button>
                 <button
                   id="admin-category-form-submit"
                   type="submit"
                   disabled={isSubmitting}
                   className="flex-1 h-12 rounded-2xl font-bold text-white disabled:opacity-70"
-                  style={{ background:"linear-gradient(135deg,#586CFF 0%,#7E57FF 100%)" }}
+                  style={{ background:"linear-gradient(135deg,#7456D0 0%,#6648C2 100%)" }}
                 >
                   {isSubmitting ? "Saving…" : editingCategory ? "Save Changes" : "Create"}
                 </button>
@@ -3616,20 +3681,20 @@ function AdminCategoriesScreen({ onBack, toast }: { onBack: () => void; toast: (
 
       {/* ── Delete confirm modal ── */}
       {deleteConfirmId && (
-        <div className="absolute inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm px-5 pb-8">
-          <div className="bg-[#161920] border border-[#222733] rounded-3xl p-6 w-full flex flex-col items-center gap-4">
-            <div className="w-14 h-14 rounded-full bg-[rgba(239,68,68,0.15)] flex items-center justify-center">
-              <Trash2 size={26} className="text-[#EF4444]" />
+        <div className="absolute inset-0 z-50 flex items-end justify-center bg-black/40 backdrop-blur-sm px-5 pb-8">
+          <div className="bg-card border border-border rounded-3xl p-6 w-full flex flex-col items-center gap-4 shadow-xl">
+            <div className="w-14 h-14 rounded-full bg-destructive/10 flex items-center justify-center">
+              <Trash2 size={26} className="text-destructive" />
             </div>
             <div className="text-center">
-              <h2 className="text-xl font-bold text-white" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>Delete Category</h2>
-              <p className="text-[#A5A9B5] text-sm mt-1">This action cannot be undone. Services in this category may be affected.</p>
+              <h2 className="text-xl font-bold text-foreground" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>Delete Category</h2>
+              <p className="text-muted-foreground text-sm mt-1">This action cannot be undone. Services in this category may be affected.</p>
             </div>
             <div className="flex gap-3 w-full pt-2">
               <button
                 id="admin-category-delete-cancel"
                 onClick={() => setDeleteConfirmId(null)}
-                className="flex-1 h-12 rounded-2xl bg-[#20242D] text-white font-bold"
+                className="flex-1 h-12 rounded-2xl bg-muted text-foreground font-bold"
               >
                 Cancel
               </button>
@@ -3759,7 +3824,7 @@ function AdminServicesScreen({ onBack, toast }: { onBack: () => void; toast: (ms
     setCreateError(null);
     try {
       await adminApi.createService(createForm);
-      toast("Service created.", "#22C55E");
+      toast("Service created.", "#5BE7C4");
       setIsCreateOpen(false);
       loadServices();
     } catch (err) {
@@ -3779,20 +3844,20 @@ function AdminServicesScreen({ onBack, toast }: { onBack: () => void; toast: (ms
         <button
           id="admin-services-back-btn"
           onClick={onBack}
-          className="w-10 h-10 rounded-full bg-[#20242D] flex items-center justify-center active:scale-90 transition-transform"
+          className="w-10 h-10 rounded-full bg-muted flex items-center justify-center active:scale-90 transition-transform"
         >
-          <ArrowLeft size={18} className="text-white" />
+          <ArrowLeft size={18} className="text-foreground" />
         </button>
         <div className="flex-1 min-w-0">
-          <h2 className="font-bold text-white text-lg" style={{ fontFamily: "'Plus Jakarta Sans',sans-serif" }}>Services</h2>
+          <h2 className="font-bold text-foreground text-lg" style={{ fontFamily: "'Plus Jakarta Sans',sans-serif" }}>Services</h2>
           {!isLoading && !fetchError && (
-            <p className="text-[#A5A9B5] text-xs">{total.toLocaleString()} active services</p>
+            <p className="text-muted-foreground text-xs">{total.toLocaleString()} active services</p>
           )}
         </div>
         <button
           id="admin-services-create-btn"
           onClick={openCreate}
-          className="flex items-center gap-1.5 rounded-xl bg-[#7E57FF] px-3 py-2 text-xs font-bold text-white active:scale-95 transition-transform"
+          className="flex items-center gap-1.5 rounded-xl bg-primary px-3 py-2 text-xs font-bold text-white active:scale-95 transition-transform"
         >
           <Plus size={14} /> Add
         </button>
@@ -3800,17 +3865,17 @@ function AdminServicesScreen({ onBack, toast }: { onBack: () => void; toast: (ms
 
       {/* ── Search ── */}
       <div className="relative">
-        <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#A5A9B5] pointer-events-none" />
+        <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
         <input
           id="admin-services-search"
           type="text"
           placeholder="Search by title or description…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="w-full rounded-xl border border-[#222733] bg-[#161920] pl-9 pr-8 py-2.5 text-sm text-white outline-none placeholder:text-[#A5A9B5] focus:border-[#7E57FF] transition-colors"
+          className="w-full rounded-xl border border-border bg-card pl-9 pr-8 py-2.5 text-sm text-foreground outline-none placeholder:text-muted-foreground focus:border-primary transition-colors"
         />
         {search && (
-          <button onClick={() => setSearch("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-[#A5A9B5] hover:text-white">
+          <button onClick={() => setSearch("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
             <X size={14} />
           </button>
         )}
@@ -3823,7 +3888,7 @@ function AdminServicesScreen({ onBack, toast }: { onBack: () => void; toast: (ms
             id="admin-services-filter-all"
             onClick={() => setCategoryFilter("")}
             className={`shrink-0 px-3 py-1.5 rounded-xl text-xs font-bold transition-colors ${
-              !categoryFilter ? "bg-[#7E57FF] text-white" : "bg-[#161920] border border-[#222733] text-[#A5A9B5] hover:text-white"
+              !categoryFilter ? "bg-primary text-white" : "bg-card border border-border text-muted-foreground hover:text-foreground"
             }`}
           >
             All
@@ -3834,7 +3899,7 @@ function AdminServicesScreen({ onBack, toast }: { onBack: () => void; toast: (ms
               id={`admin-services-filter-${cat.id}`}
               onClick={() => setCategoryFilter(cat.id)}
               className={`shrink-0 px-3 py-1.5 rounded-xl text-xs font-bold transition-colors ${
-                categoryFilter === cat.id ? "bg-[#7E57FF] text-white" : "bg-[#161920] border border-[#222733] text-[#A5A9B5] hover:text-white"
+                categoryFilter === cat.id ? "bg-primary text-white" : "bg-card border border-border text-muted-foreground hover:text-foreground"
               }`}
             >
               {cat.icon && <span className="mr-1">{cat.icon}</span>}{cat.name}
@@ -3847,26 +3912,26 @@ function AdminServicesScreen({ onBack, toast }: { onBack: () => void; toast: (ms
       {isLoading ? (
         <div className="flex flex-col gap-3">
           {Array.from({ length: 5 }).map((_, i) => (
-            <div key={i} className="h-24 bg-[#161920] border border-[#222733] rounded-2xl animate-pulse" />
+            <div key={i} className="h-24 bg-muted border border-border rounded-2xl animate-pulse" />
           ))}
         </div>
       ) : fetchError ? (
-        <div className="rounded-2xl border border-[rgba(239,68,68,0.35)] bg-[rgba(239,68,68,0.08)] p-6 text-center">
-          <p className="text-[#FCA5A5] text-sm mb-3">{fetchError}</p>
-          <button onClick={loadServices} className="text-[#7E57FF] text-sm font-semibold bg-[rgba(168,85,247,0.12)] px-4 py-2 rounded-xl">
+        <div className="rounded-2xl border border-destructive/30 bg-destructive/10 p-6 text-center">
+          <p className="text-destructive text-sm mb-3">{fetchError}</p>
+          <button onClick={loadServices} className="text-primary text-sm font-semibold bg-primary-soft px-4 py-2 rounded-xl">
             Retry
           </button>
         </div>
       ) : services.length === 0 ? (
         <div className="text-center py-12">
-          <Sparkles size={40} className="text-[#A5A9B5] mx-auto mb-3 opacity-30" />
-          <p className="text-[#A5A9B5] text-sm">
+          <Sparkles size={40} className="text-muted-foreground mx-auto mb-3 opacity-30" />
+          <p className="text-muted-foreground text-sm">
             {search || categoryFilter ? "No services match your filters" : "No active services found"}
           </p>
           {(search || categoryFilter) && (
             <button
               onClick={() => { setSearch(""); setCategoryFilter(""); }}
-              className="mt-3 text-[#7E57FF] text-sm font-semibold"
+              className="mt-3 text-primary text-sm font-semibold"
             >
               Clear filters
             </button>
@@ -3880,31 +3945,31 @@ function AdminServicesScreen({ onBack, toast }: { onBack: () => void; toast: (ms
                 key={svc.id}
                 id={`admin-service-card-${svc.id}`}
                 onClick={() => setDetailService(svc)}
-                className="bg-[#161920] border border-[#222733] rounded-2xl p-4 w-full text-left active:scale-[0.98] transition-transform hover:bg-[#1c2029]"
+                className="bg-card border border-border rounded-2xl p-4 w-full text-left active:scale-[0.98] transition-transform hover:bg-muted"
               >
                 <div className="flex items-start justify-between gap-2 mb-2">
                   <div className="flex-1 min-w-0">
-                    <p className="text-white font-bold text-sm truncate">{svc.title}</p>
-                    <p className="text-[#A5A9B5] text-xs mt-0.5 truncate">
+                    <p className="text-foreground font-bold text-sm truncate">{svc.title}</p>
+                    <p className="text-muted-foreground text-xs mt-0.5 truncate">
                       {svc.helper.user.firstName} {svc.helper.user.lastName} · {svc.category.name}
                     </p>
                   </div>
                   <span className={`shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                    svc.isActive ? "bg-[rgba(34,197,94,0.15)] text-[#22C55E]" : "bg-[rgba(239,68,68,0.15)] text-[#EF4444]"
+                    svc.isActive ? "bg-accent-soft text-[#0B3D2E]" : "bg-destructive/10 text-destructive"
                   }`}>
                     {svc.isActive ? "Active" : "Inactive"}
                   </span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <p className="text-white font-semibold text-sm">{formatPrice(svc.price, svc.priceType)}</p>
+                  <p className="text-foreground font-semibold text-sm">{formatPrice(svc.price, svc.priceType)}</p>
                   {svc.duration && (
-                    <p className="text-[#A5A9B5] text-xs flex items-center gap-1">
+                    <p className="text-muted-foreground text-xs flex items-center gap-1">
                       <Clock size={11} />{svc.duration} min
                     </p>
                   )}
                 </div>
                 {svc.description && (
-                  <p className="text-[#A5A9B5] text-xs mt-1.5 leading-relaxed line-clamp-2">{svc.description}</p>
+                  <p className="text-muted-foreground text-xs mt-1.5 leading-relaxed line-clamp-2">{svc.description}</p>
                 )}
               </button>
             ))}
@@ -3917,16 +3982,16 @@ function AdminServicesScreen({ onBack, toast }: { onBack: () => void; toast: (ms
                 id="admin-services-prev-btn"
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
                 disabled={page === 1}
-                className="px-4 py-2 rounded-xl bg-[#20242D] text-white text-xs font-semibold disabled:opacity-40"
+                className="px-4 py-2 rounded-xl bg-muted text-foreground text-xs font-semibold disabled:opacity-40"
               >
                 Previous
               </button>
-              <span className="text-[#A5A9B5] text-xs">Page {page} of {totalPages}</span>
+              <span className="text-muted-foreground text-xs">Page {page} of {totalPages}</span>
               <button
                 id="admin-services-next-btn"
                 onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                 disabled={page === totalPages}
-                className="px-4 py-2 rounded-xl bg-[#7E57FF] text-white text-xs font-semibold disabled:opacity-40"
+                className="px-4 py-2 rounded-xl bg-primary text-white text-xs font-semibold disabled:opacity-40"
               >
                 Next
               </button>
@@ -3938,36 +4003,36 @@ function AdminServicesScreen({ onBack, toast }: { onBack: () => void; toast: (ms
       {/* ── Service Detail Modal ── */}
       {detailService && (
         <div
-          className="absolute inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm px-5 pb-8"
+          className="absolute inset-0 z-50 flex items-end justify-center bg-black/40 backdrop-blur-sm px-5 pb-8"
           onClick={() => setDetailService(null)}
         >
           <div
-            className="bg-[#161920] border border-[#222733] rounded-3xl p-5 w-full max-h-[82vh] overflow-y-auto"
+            className="bg-card border border-border rounded-3xl p-5 w-full max-h-[82vh] overflow-y-auto shadow-xl"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between mb-5">
-              <h3 className="text-lg font-bold text-white" style={{ fontFamily: "'Plus Jakarta Sans',sans-serif" }}>Service Details</h3>
+              <h3 className="text-lg font-bold text-foreground" style={{ fontFamily: "'Plus Jakarta Sans',sans-serif" }}>Service Details</h3>
               <button
                 id="admin-service-detail-close"
                 onClick={() => setDetailService(null)}
-                className="w-9 h-9 rounded-full bg-[#20242D] flex items-center justify-center active:scale-90 transition-transform"
+                className="w-9 h-9 rounded-full bg-muted flex items-center justify-center active:scale-90 transition-transform"
               >
-                <X size={16} className="text-white" />
+                <X size={16} className="text-foreground" />
               </button>
             </div>
 
             {/* Title + status */}
             <div className="mb-4">
               <div className="flex items-start justify-between gap-2 mb-1">
-                <p className="text-white font-bold text-base flex-1">{detailService.title}</p>
+                <p className="text-foreground font-bold text-base flex-1">{detailService.title}</p>
                 <span className={`shrink-0 text-xs font-bold px-3 py-1 rounded-full ${
-                  detailService.isActive ? "bg-[rgba(34,197,94,0.15)] text-[#22C55E]" : "bg-[rgba(239,68,68,0.15)] text-[#EF4444]"
+                  detailService.isActive ? "bg-accent-soft text-[#0B3D2E]" : "bg-destructive/10 text-destructive"
                 }`}>
                   {detailService.isActive ? "Active" : "Inactive"}
                 </span>
               </div>
               {detailService.description && (
-                <p className="text-[#A5A9B5] text-sm leading-relaxed">{detailService.description}</p>
+                <p className="text-muted-foreground text-sm leading-relaxed">{detailService.description}</p>
               )}
             </div>
 
@@ -3981,9 +4046,9 @@ function AdminServicesScreen({ onBack, toast }: { onBack: () => void; toast: (ms
                 { label: "Rating",     value: detailService.helper.rating ? `⭐ ${detailService.helper.rating}` : "—" },
                 { label: "Service ID", value: detailService.id },
               ].map(({ label, value }) => (
-                <div key={label} className="bg-[#20242D] rounded-xl px-4 py-3 flex items-center justify-between gap-3">
-                  <span className="text-[#A5A9B5] text-xs font-semibold uppercase tracking-[0.08em] shrink-0">{label}</span>
-                  <span className="text-white text-sm font-medium text-right break-all">{value}</span>
+                <div key={label} className="bg-muted rounded-xl px-4 py-3 flex items-center justify-between gap-3">
+                  <span className="text-muted-foreground text-xs font-semibold uppercase tracking-[0.08em] shrink-0">{label}</span>
+                  <span className="text-foreground text-sm font-medium text-right break-all">{value}</span>
                 </div>
               ))}
             </div>
@@ -3991,7 +4056,7 @@ function AdminServicesScreen({ onBack, toast }: { onBack: () => void; toast: (ms
             <button
               id="admin-service-detail-dismiss"
               onClick={() => setDetailService(null)}
-              className="w-full mt-5 rounded-2xl bg-[#20242D] py-3 text-white font-semibold text-sm active:scale-[0.98] transition-transform"
+              className="w-full mt-5 rounded-2xl bg-muted py-3 text-foreground font-semibold text-sm active:scale-[0.98] transition-transform"
             >
               Close
             </button>
@@ -4001,51 +4066,51 @@ function AdminServicesScreen({ onBack, toast }: { onBack: () => void; toast: (ms
 
       {/* ── Create Service Modal ── */}
       {isCreateOpen && (
-        <div className="absolute inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm px-5 pb-8">
-          <div className="bg-[#161920] border border-[#222733] rounded-3xl p-5 w-full max-h-[90vh] overflow-y-auto">
+        <div className="absolute inset-0 z-50 flex items-end justify-center bg-black/40 backdrop-blur-sm px-5 pb-8">
+          <div className="bg-card border border-border rounded-3xl p-5 w-full max-h-[90vh] overflow-y-auto shadow-xl">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-bold text-white" style={{ fontFamily: "'Plus Jakarta Sans',sans-serif" }}>New Service</h2>
+              <h2 className="text-xl font-bold text-foreground" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>New Service</h2>
               <button
                 id="admin-service-create-close"
                 onClick={() => setIsCreateOpen(false)}
-                className="w-9 h-9 rounded-full bg-[#20242D] flex items-center justify-center active:scale-90 transition-transform"
+                className="w-9 h-9 rounded-full bg-muted flex items-center justify-center active:scale-90 transition-transform"
               >
-                <X size={16} className="text-white" />
+                <X size={16} className="text-foreground" />
               </button>
             </div>
             <form onSubmit={handleCreate} className="flex flex-col gap-3">
               {/* Title */}
               <div>
-                <label className="block text-xs font-semibold uppercase tracking-[0.08em] text-[#A5A9B5] mb-1.5">Title <span className="text-[#EF4444]">*</span></label>
+                <label className="block text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground mb-1.5">Title <span className="text-destructive">*</span></label>
                 <input
                   id="admin-service-form-title"
                   value={createForm.title}
                   onChange={(e) => setCreateForm({ ...createForm, title: e.target.value })}
                   placeholder="e.g. Deep Home Cleaning"
-                  className="w-full rounded-xl border border-[#222733] bg-[#20242D] px-3 py-2.5 text-sm text-white outline-none placeholder:text-[#A5A9B5] focus:border-[#7E57FF]"
+                  className="w-full rounded-xl border border-border bg-muted px-3 py-2.5 text-sm text-foreground outline-none placeholder:text-muted-foreground focus:border-primary"
                   required
                 />
               </div>
               {/* Description */}
               <div>
-                <label className="block text-xs font-semibold uppercase tracking-[0.08em] text-[#A5A9B5] mb-1.5">Description</label>
+                <label className="block text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground mb-1.5">Description</label>
                 <textarea
                   id="admin-service-form-description"
                   value={createForm.description ?? ""}
                   onChange={(e) => setCreateForm({ ...createForm, description: e.target.value })}
                   rows={3}
                   placeholder="What does this service include?"
-                  className="w-full rounded-xl border border-[#222733] bg-[#20242D] px-3 py-2.5 text-sm text-white outline-none placeholder:text-[#A5A9B5] focus:border-[#7E57FF] resize-none"
+                  className="w-full rounded-xl border border-border bg-muted px-3 py-2.5 text-sm text-foreground outline-none placeholder:text-muted-foreground focus:border-primary resize-none"
                 />
               </div>
               {/* Category */}
               <div>
-                <label className="block text-xs font-semibold uppercase tracking-[0.08em] text-[#A5A9B5] mb-1.5">Category <span className="text-[#EF4444]">*</span></label>
+                <label className="block text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground mb-1.5">Category <span className="text-destructive">*</span></label>
                 <select
                   id="admin-service-form-category"
                   value={createForm.categoryId}
                   onChange={(e) => setCreateForm({ ...createForm, categoryId: e.target.value })}
-                  className="w-full rounded-xl border border-[#222733] bg-[#20242D] px-3 py-2.5 text-sm text-white outline-none focus:border-[#7E57FF]"
+                  className="w-full rounded-xl border border-border bg-muted px-3 py-2.5 text-sm text-foreground outline-none focus:border-primary"
                   required
                 >
                   <option value="">— Select category —</option>
@@ -4056,12 +4121,12 @@ function AdminServicesScreen({ onBack, toast }: { onBack: () => void; toast: (ms
               </div>
               {/* Helper (picker: GET /helpers returns verified HelperProfile.id) */}
               <div>
-                <label className="block text-xs font-semibold uppercase tracking-[0.08em] text-[#A5A9B5] mb-1.5">Helper <span className="text-[#EF4444]">*</span></label>
+                <label className="block text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground mb-1.5">Helper <span className="text-destructive">*</span></label>
                 <select
                   id="admin-service-form-helper"
                   value={createForm.helperId}
                   onChange={(e) => setCreateForm({ ...createForm, helperId: e.target.value })}
-                  className="w-full rounded-xl border border-[#222733] bg-[#20242D] px-3 py-2.5 text-sm text-white outline-none focus:border-[#7E57FF]"
+                  className="w-full rounded-xl border border-border bg-muted px-3 py-2.5 text-sm text-foreground outline-none focus:border-primary"
                   required
                   disabled={helpersLoading || !!helpersError}
                 >
@@ -4075,33 +4140,33 @@ function AdminServicesScreen({ onBack, toast }: { onBack: () => void; toast: (ms
                     );
                   })}
                 </select>
-                {helpersLoading && <p className="text-[#A5A9B5] text-[10px] mt-1">Loading helpers…</p>}
-                {helpersError && <p className="text-[#EF4444] text-[10px] mt-1">{helpersError}</p>}
+                {helpersLoading && <p className="text-muted-foreground text-[10px] mt-1">Loading helpers…</p>}
+                {helpersError && <p className="text-destructive text-[10px] mt-1">{helpersError}</p>}
                 {!helpersLoading && !helpersError && helpers.length === 0 && (
-                  <p className="text-[#A5A9B5] text-[10px] mt-1">No verified helpers available yet.</p>
+                  <p className="text-muted-foreground text-[10px] mt-1">No verified helpers available yet.</p>
                 )}
               </div>
               {/* Price + Price Type */}
               <div className="flex gap-3">
                 <div className="flex-1">
-                  <label className="block text-xs font-semibold uppercase tracking-[0.08em] text-[#A5A9B5] mb-1.5">Price (₹) <span className="text-[#EF4444]">*</span></label>
+                  <label className="block text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground mb-1.5">Price (₹) <span className="text-destructive">*</span></label>
                   <input
                     id="admin-service-form-price"
                     type="number"
                     min={0}
                     value={createForm.price}
                     onChange={(e) => setCreateForm({ ...createForm, price: Number(e.target.value) })}
-                    className="w-full rounded-xl border border-[#222733] bg-[#20242D] px-3 py-2.5 text-sm text-white outline-none placeholder:text-[#A5A9B5] focus:border-[#7E57FF]"
+                    className="w-full rounded-xl border border-border bg-muted px-3 py-2.5 text-sm text-foreground outline-none placeholder:text-muted-foreground focus:border-primary"
                     required
                   />
                 </div>
                 <div className="flex-1">
-                  <label className="block text-xs font-semibold uppercase tracking-[0.08em] text-[#A5A9B5] mb-1.5">Price Type</label>
+                  <label className="block text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground mb-1.5">Price Type</label>
                   <select
                     id="admin-service-form-price-type"
                     value={createForm.priceType}
                     onChange={(e) => setCreateForm({ ...createForm, priceType: e.target.value })}
-                    className="w-full rounded-xl border border-[#222733] bg-[#20242D] px-3 py-2.5 text-sm text-white outline-none focus:border-[#7E57FF]"
+                    className="w-full rounded-xl border border-border bg-muted px-3 py-2.5 text-sm text-foreground outline-none focus:border-primary"
                   >
                     <option value="FIXED">Fixed</option>
                     <option value="HOURLY">Hourly</option>
@@ -4110,7 +4175,7 @@ function AdminServicesScreen({ onBack, toast }: { onBack: () => void; toast: (ms
               </div>
               {/* Duration */}
               <div>
-                <label className="block text-xs font-semibold uppercase tracking-[0.08em] text-[#A5A9B5] mb-1.5">Duration (min) <span className="text-[#A5A9B5] text-[10px] normal-case">(optional)</span></label>
+                <label className="block text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground mb-1.5">Duration (min) <span className="text-muted-foreground text-[10px] normal-case">(optional)</span></label>
                 <input
                   id="admin-service-form-duration"
                   type="number"
@@ -4118,24 +4183,24 @@ function AdminServicesScreen({ onBack, toast }: { onBack: () => void; toast: (ms
                   value={createForm.duration ?? ""}
                   onChange={(e) => setCreateForm({ ...createForm, duration: e.target.value ? Number(e.target.value) : undefined })}
                   placeholder="e.g. 120"
-                  className="w-full rounded-xl border border-[#222733] bg-[#20242D] px-3 py-2.5 text-sm text-white outline-none placeholder:text-[#A5A9B5] focus:border-[#7E57FF]"
+                  className="w-full rounded-xl border border-border bg-muted px-3 py-2.5 text-sm text-foreground outline-none placeholder:text-muted-foreground focus:border-primary"
                 />
               </div>
 
               {createError && (
-                <div className="rounded-xl border border-[rgba(239,68,68,0.35)] bg-[rgba(239,68,68,0.08)] px-3 py-2 text-sm text-[#FCA5A5]">
+                <div className="rounded-xl border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
                   {createError}
                 </div>
               )}
 
               <div className="flex gap-3 pt-2">
-                <button type="button" onClick={() => setIsCreateOpen(false)} className="flex-1 h-12 rounded-2xl bg-[#20242D] text-white font-bold">Cancel</button>
+                <button type="button" onClick={() => setIsCreateOpen(false)} className="flex-1 h-12 rounded-2xl bg-muted text-foreground font-bold">Cancel</button>
                 <button
                   id="admin-service-form-submit"
                   type="submit"
                   disabled={isCreating}
                   className="flex-1 h-12 rounded-2xl font-bold text-white disabled:opacity-70"
-                  style={{ background: "linear-gradient(135deg,#7E57FF 0%,#7C3AED 100%)" }}
+                  style={{ background: "linear-gradient(135deg,#7456D0 0%,#6648C2 100%)" }}
                 >
                   {isCreating ? "Creating…" : "Create Service"}
                 </button>
@@ -4165,7 +4230,7 @@ function AdminServiceRequestsScreen({ onBack, toast }: { onBack: () => void; toa
     setReviewingId(id);
     try {
       await review(id, { approved });
-      toast(approved ? "Service request approved." : "Service request rejected.", approved ? "#22C55E" : "#EF4444");
+      toast(approved ? "Service request approved." : "Service request rejected.", approved ? "#5BE7C4" : "#EF4444");
       refetch();
     } catch (err) {
       toast(err instanceof Error ? err.message : "Failed to review request.", "#EF4444");
@@ -4185,59 +4250,59 @@ function AdminServiceRequestsScreen({ onBack, toast }: { onBack: () => void; toa
   return (
     <div className="flex flex-col gap-4 pb-4 pt-2 animate-fade-in">
       <div className="flex items-center gap-4">
-        <button onClick={onBack} className="w-10 h-10 rounded-full bg-[#20242D] flex items-center justify-center active:scale-90 transition-transform">
-          <ArrowLeft size={18} className="text-white" />
+        <button onClick={onBack} className="w-10 h-10 rounded-full bg-muted flex items-center justify-center active:scale-90 transition-transform">
+          <ArrowLeft size={18} className="text-foreground" />
         </button>
-        <h2 className="font-bold text-white text-lg" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>Service Requests</h2>
+        <h2 className="font-bold text-foreground text-lg" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>Service Requests</h2>
       </div>
 
       <div className="flex gap-2 overflow-x-auto pb-1" style={{ scrollbarWidth:"none" }}>
         {statusTabs.map((tab) => (
-          <button key={tab.label} onClick={() => { setStatus(tab.value); setPage(1); }} className={`shrink-0 px-4 py-2 rounded-full text-sm font-semibold transition-colors ${status === tab.value ? "bg-[#586CFF] text-white" : "bg-[#20242D] text-[#A5A9B5] hover:text-white"}`}>{tab.label}</button>
+          <button key={tab.label} onClick={() => { setStatus(tab.value); setPage(1); }} className={`shrink-0 px-4 py-2 rounded-full text-sm font-semibold transition-colors ${status === tab.value ? "bg-primary text-white" : "bg-muted text-muted-foreground hover:text-foreground"}`}>{tab.label}</button>
         ))}
       </div>
 
       {isLoading ? (
         <div className="flex flex-col gap-3">
-          {Array.from({ length: 5 }).map((_, i) => <div key={i} className="h-24 bg-[#161920] border border-[#222733] rounded-2xl animate-pulse" />)}
+          {Array.from({ length: 5 }).map((_, i) => <div key={i} className="h-24 bg-muted border border-border rounded-2xl animate-pulse" />)}
         </div>
       ) : error ? (
-        <div className="rounded-2xl border border-[rgba(239,68,68,0.35)] bg-[rgba(239,68,68,0.08)] p-6 text-center">
-          <p className="text-[#FCA5A5] text-sm mb-3">{error}</p>
-          <button onClick={refetch} className="text-[#586CFF] text-sm font-semibold bg-[rgba(88,108,255,0.12)] px-4 py-2 rounded-xl">Retry</button>
+        <div className="rounded-2xl border border-destructive/30 bg-destructive/10 p-6 text-center">
+          <p className="text-destructive text-sm mb-3">{error}</p>
+          <button onClick={refetch} className="text-primary text-sm font-semibold bg-primary-soft px-4 py-2 rounded-xl">Retry</button>
         </div>
       ) : requests.length === 0 ? (
         <div className="text-center py-12">
-          <ClipboardList size={40} className="text-[#A5A9B5] mx-auto mb-3 opacity-30" />
-          <p className="text-[#A5A9B5]">No service requests found</p>
+          <ClipboardList size={40} className="text-muted-foreground mx-auto mb-3 opacity-30" />
+          <p className="text-muted-foreground">No service requests found</p>
         </div>
       ) : (
         <>
           <div className="flex flex-col gap-3">
             {requests.map((req) => (
-              <div key={req.id} className="bg-[#161920] border border-[#222733] rounded-2xl p-4">
+              <div key={req.id} className="bg-card border border-border rounded-2xl p-4">
                 <div className="flex items-start justify-between gap-2 mb-2">
                   <div className="flex-1 min-w-0">
-                    <p className="text-white font-bold text-sm truncate">{req.title || req.category.name}</p>
-                    <p className="text-[#A5A9B5] text-xs mt-0.5">{req.helper.user.firstName} {req.helper.user.lastName} · {req.helper.user.email}</p>
-                    <p className="text-[#A5A9B5] text-[10px] mt-0.5">Category: {req.category.name} · Submitted {new Date(req.createdAt).toLocaleString("en-IN", { day: "numeric", month: "short", year: "numeric" })}</p>
+                    <p className="text-foreground font-bold text-sm truncate">{req.title || req.category.name}</p>
+                    <p className="text-muted-foreground text-xs mt-0.5">{req.helper.user.firstName} {req.helper.user.lastName} · {req.helper.user.email}</p>
+                    <p className="text-muted-foreground text-[10px] mt-0.5">Category: {req.category.name} · Submitted {new Date(req.createdAt).toLocaleString("en-IN", { day: "numeric", month: "short", year: "numeric" })}</p>
                   </div>
-                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${req.status === 'PENDING' ? 'bg-[rgba(245,158,11,0.15)] text-[#FBBF24]' : req.status === 'APPROVED' ? 'bg-[rgba(34,197,94,0.15)] text-[#22C55E]' : 'bg-[rgba(239,68,68,0.15)] text-[#EF4444]'}`}>{req.status}</span>
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${req.status === 'PENDING' ? 'bg-[rgba(245,158,11,0.15)] text-[#F59E0B]' : req.status === 'APPROVED' ? 'bg-accent-soft text-[#0B3D2E]' : 'bg-destructive/10 text-destructive'}`}>{req.status}</span>
                 </div>
-                <p className="text-white text-sm font-semibold">₹{req.suggestedPrice.toLocaleString()} <span className="text-[#A5A9B5] text-xs font-normal">/ {req.suggestedPriceType}</span></p>
-                {req.adminNotes && <p className="text-[#A5A9B5] text-xs mt-1">Note: {req.adminNotes}</p>}
+                <p className="text-foreground text-sm font-semibold">₹{req.suggestedPrice.toLocaleString()} <span className="text-muted-foreground text-xs font-normal">/ {req.suggestedPriceType}</span></p>
+                {req.adminNotes && <p className="text-muted-foreground text-xs mt-1">Note: {req.adminNotes}</p>}
                 {req.status === 'PENDING' && (
                   <div className="flex gap-2 mt-3">
                     {reviewingId === req.id ? (
-                      <div className="flex-1 h-10 rounded-xl bg-[#20242D] text-[#A5A9B5] text-xs font-bold flex items-center justify-center gap-1">
+                      <div className="flex-1 h-10 rounded-xl bg-muted text-muted-foreground text-xs font-bold flex items-center justify-center gap-1">
                         <Timer size={14} className="animate-spin" /> Processing…
                       </div>
                     ) : (
                       <>
-                        <button onClick={() => setConfirmRequest({ id: req.id, approved: true })} className="flex-1 h-10 rounded-xl bg-[#22C55E] text-white text-xs font-bold active:scale-95 transition-transform flex items-center justify-center gap-1">
+                        <button onClick={() => setConfirmRequest({ id: req.id, approved: true })} className="flex-1 h-10 rounded-xl bg-[#5BE7C4] text-white text-xs font-bold active:scale-95 transition-transform flex items-center justify-center gap-1">
                           <Check size={14} /> Approve
                         </button>
-                        <button onClick={() => setConfirmRequest({ id: req.id, approved: false })} className="flex-1 h-10 rounded-xl bg-[rgba(239,68,68,0.12)] text-[#EF4444] text-xs font-bold active:scale-95 transition-transform flex items-center justify-center gap-1">
+                        <button onClick={() => setConfirmRequest({ id: req.id, approved: false })} className="flex-1 h-10 rounded-xl bg-destructive/10 text-destructive text-xs font-bold active:scale-95 transition-transform flex items-center justify-center gap-1">
                           <X size={14} /> Reject
                         </button>
                       </>
@@ -4250,37 +4315,559 @@ function AdminServiceRequestsScreen({ onBack, toast }: { onBack: () => void; toa
 
           {totalPages > 1 && (
             <div className="flex items-center justify-between mt-2">
-              <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1} className="px-4 py-2 rounded-xl bg-[#20242D] text-white text-xs font-semibold disabled:opacity-50">Previous</button>
-              <span className="text-[#A5A9B5] text-xs">Page {page} of {totalPages}</span>
-              <button onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page === totalPages} className="px-4 py-2 rounded-xl bg-[#586CFF] text-white text-xs font-semibold disabled:opacity-50">Next</button>
+              <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1} className="px-4 py-2 rounded-xl bg-muted text-foreground text-xs font-semibold disabled:opacity-50">Previous</button>
+              <span className="text-muted-foreground text-xs">Page {page} of {totalPages}</span>
+              <button onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page === totalPages} className="px-4 py-2 rounded-xl bg-primary text-white text-xs font-semibold disabled:opacity-50">Next</button>
             </div>
           )}
         </>
       )}
 
       {confirmRequest && (
-        <div className="absolute inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm px-5 pb-8">
-          <div className="bg-[#161920] border border-[#222733] rounded-3xl p-6 w-full flex flex-col items-center gap-4">
-            <div className="w-14 h-14 rounded-full flex items-center justify-center" style={{ background: confirmRequest.approved ? "rgba(34,197,94,0.15)" : "rgba(239,68,68,0.15)" }}>
-              <CheckCircle2 size={28} className={confirmRequest.approved ? "text-[#22C55E]" : "text-[#EF4444]"} />
+        <div className="absolute inset-0 z-50 flex items-end justify-center bg-black/40 backdrop-blur-sm px-5 pb-8">
+          <div className="bg-card border border-border rounded-3xl p-6 w-full flex flex-col items-center gap-4 shadow-xl">
+            <div className="w-14 h-14 rounded-full flex items-center justify-center" style={{ background: confirmRequest.approved ? "rgba(91,231,196,0.15)" : "rgba(239,68,68,0.15)" }}>
+              <CheckCircle2 size={28} className={confirmRequest.approved ? "text-[#5BE7C4]" : "text-destructive"} />
             </div>
             <div className="text-center">
-              <h2 className="text-xl font-bold text-white" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>{confirmRequest.approved ? "Approve" : "Reject"} Request</h2>
-              <p className="text-[#A5A9B5] text-sm mt-1">
+              <h2 className="text-xl font-bold text-foreground" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>{confirmRequest.approved ? "Approve" : "Reject"} Request</h2>
+              <p className="text-muted-foreground text-sm mt-1">
                 {confirmRequest.approved
                   ? "This will approve the service request for publication."
                   : "This will reject the service request. The helper will be notified."}
               </p>
             </div>
             <div className="flex gap-3 w-full pt-2">
-              <button onClick={() => setConfirmRequest(null)} className="flex-1 h-12 rounded-2xl bg-[#20242D] text-white font-bold">Cancel</button>
-              <button onClick={handleConfirmReview} className="flex-1 h-12 rounded-2xl font-bold text-white active:scale-95 transition-transform" style={{ background: confirmRequest.approved ? "linear-gradient(135deg,#22C55E 0%,#16A34A 100%)" : "linear-gradient(135deg,#EF4444 0%,#B91C1C 100%)" }}>
+              <button onClick={() => setConfirmRequest(null)} className="flex-1 h-12 rounded-2xl bg-muted text-foreground font-bold">Cancel</button>
+              <button onClick={handleConfirmReview} className="flex-1 h-12 rounded-2xl font-bold text-white active:scale-95 transition-transform" style={{ background: confirmRequest.approved ? "linear-gradient(135deg,#5BE7C4 0%,#5BE7C4 100%)" : "linear-gradient(135deg,#EF4444 0%,#B91C1C 100%)" }}>
                 {confirmRequest.approved ? "Approve" : "Reject"}
               </button>
             </div>
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// ─── Popular Services section (landing) ───────────────────────────────────────
+// Fetches real services via the existing useServices hook and renders them
+// using the reusable ServiceMarketplaceCard component. Shows a skeleton
+// during loading and ComingSoonState when the result is empty.
+
+function PopularServicesSection({
+  toast,
+  onNavigate,
+}: {
+  toast: (msg: string, color?: string) => void;
+  onNavigate: (s: Screen, id?: string) => void;
+}) {
+  const { services, isLoading, error, refetch } = useServices({
+    limit: 3,
+    page: 1,
+  });
+
+  return (
+    <section className="bg-muted/30">
+      <PageContainer>
+        <SectionHeader
+          title="Most Popular Services"
+          subtitle="Book trusted local professionals in minutes"
+        />
+        {isLoading ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <div
+                key={i}
+                className="bg-card border border-border rounded-2xl overflow-hidden animate-pulse"
+              >
+                <div className="w-full aspect-[16/9] bg-muted" />
+                <div className="p-5 flex flex-col gap-3">
+                  <div className="h-4 bg-muted rounded w-3/4" />
+                  <div className="h-3 bg-muted rounded w-1/2" />
+                  <div className="h-3 bg-muted rounded w-full" />
+                  <div className="h-3 bg-muted rounded w-2/3" />
+                  <div className="h-10 bg-muted rounded-xl mt-4" />
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : error ? (
+          <div className="bg-card border border-border rounded-2xl p-6 text-center">
+            <p className="text-destructive text-sm mb-3">{error}</p>
+            <button
+              onClick={() => refetch()}
+              className="text-primary text-sm font-semibold bg-primary-soft px-4 py-2 rounded-xl"
+            >
+              Retry
+            </button>
+          </div>
+        ) : services.length === 0 ? (
+          <ComingSoonState />
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
+            {services.map((s) => (
+              <ServiceMarketplaceCard
+                key={s.id}
+                service={s}
+                onDetails={(id) => onNavigate("detail", id)}
+                onBook={(id) => {
+                  toast("Sign in to book this service", "#7456D0");
+                  onNavigate("detail", id);
+                }}
+              />
+            ))}
+          </div>
+        )}
+      </PageContainer>
+    </section>
+  );
+}
+
+// ─── Landing page (public/landing) ────────────────────────────────────────────
+
+function LandingPage({ onNavigate, toast, onAuthNavigate }: { onNavigate: (s: Screen, id?: string) => void; toast: (msg: string, color?: string) => void; onAuthNavigate: (s: "login" | "register") => void }) {
+  const [searchQuery, setSearchQuery] = useState("");
+  const { categories, isLoading: categoriesLoading } = useCategories();
+  const [promoIdx, setPromoIdx] = useState(0);
+  const [isLocationPickerOpen, setIsLocationPickerOpen] = useState(false);
+  const { location, status: locationStatus } = useLocationContext();
+
+  const popularSearches = [
+    "Home Cleaning",
+    "Plumbing",
+    "Electrical",
+    "Handyman & Assembly",
+  ];
+
+  const heroLocationLabel = (() => {
+    if (locationStatus === "detecting") return "Detecting location...";
+    if (!location) return "Choose location";
+    if (location.city && location.state) return `${location.city}, ${location.state}`;
+    if (location.city) return location.city;
+    return location.label || "Choose location";
+  })();
+
+  useEffect(() => {
+    const t = setInterval(() => setPromoIdx((i) => (i + 1) % promos.length), 3500);
+    return () => clearInterval(t);
+  }, []);
+
+  const promo = promos[promoIdx];
+
+  const handleSearch = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    onNavigate("explore");
+  };
+
+  const handleSignIn = () => {
+    onAuthNavigate("login");
+  };
+
+  const handleRegister = () => {
+    onAuthNavigate("register");
+  };
+
+  const handleNotification = () => {
+    toast("Notifications coming soon");
+  };
+
+  const handleLogo = () => {
+    onNavigate("landing");
+  };
+
+  return (
+    <div className="min-h-screen flex flex-col bg-background">
+      <PublicNavbar
+        onSignIn={handleSignIn}
+        onRegister={handleRegister}
+        onLogoClick={handleLogo}
+        onSearchSubmit={() => handleSearch()}
+        onLocationClick={() => setIsLocationPickerOpen(true)}
+      />
+
+      <main className="flex-1">
+        {/* HERO */}
+        <section className="bg-background">
+          <PageContainer flush className="pt-12 pb-16 sm:pt-16 sm:pb-20 lg:pt-20 lg:pb-24">
+            <div className="flex flex-col items-center text-center gap-6 max-w-3xl mx-auto">
+              <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-primary-soft text-primary text-xs font-bold">
+                <span className="w-1.5 h-1.5 rounded-full bg-primary" />
+                Over 12,400+ 5-Star Local Jobs Completed
+              </div>
+
+              <h1
+                className="text-3xl sm:text-4xl lg:text-5xl font-bold text-foreground leading-tight"
+                style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}
+              >
+                Book Vetted Local Pros for{" "}
+                <span className="relative inline-block">
+                  <span className="bg-gradient-to-r from-[#7456D0] to-[#4FC0E8] bg-clip-text text-transparent">
+                    Home &amp; Office
+                  </span>
+                  <span className="absolute -bottom-1 left-0 right-0 h-1 rounded-full bg-gradient-to-r from-[#5BE7C4] to-[#4FC0E8]" />
+                </span>{" "}
+                Services
+              </h1>
+
+              <p className="text-base sm:text-lg text-muted-foreground max-w-2xl">
+                Instant booking, transparent fixed rates, background-checked trade helpers, and 100% satisfaction guaranteed.
+              </p>
+
+              {/* Search panel */}
+              <form
+                onSubmit={handleSearch}
+                className="w-full bg-card border border-border rounded-2xl p-2 sm:p-3 flex flex-col sm:flex-row items-stretch gap-2 sm:gap-3 sm:items-center shadow-sm"
+                style={{ boxShadow: "0 4px 24px rgba(116,86,208,0.06)" }}
+              >
+                <div className="flex items-center gap-2 flex-1 px-2 h-12 sm:h-14">
+                  <Search size={18} className="text-muted-foreground shrink-0" />
+                  <input
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="What do you need?"
+                    className="bg-transparent flex-1 text-foreground text-sm sm:text-base outline-none placeholder:text-muted-foreground"
+                  />
+                </div>
+                <div className="hidden sm:block w-px h-8 bg-border" />
+                <button
+                  type="button"
+                  onClick={() => setIsLocationPickerOpen(true)}
+                  className="flex items-center gap-2 flex-1 px-2 h-12 sm:h-14 border-t sm:border-t-0 border-border text-left"
+                >
+                  <MapPin size={18} className="text-muted-foreground shrink-0" />
+                  <span className="text-sm text-foreground truncate">{heroLocationLabel}</span>
+                </button>
+                <button
+                  type="submit"
+                  className="h-12 sm:h-14 px-6 rounded-xl text-white font-bold flex items-center justify-center gap-2 active:scale-[0.98] transition-transform"
+                  style={{ background: "linear-gradient(135deg, #7456D0 0%, #6648C2 100%)" }}
+                >
+                  Search
+                </button>
+              </form>
+
+              {/* Popular chips */}
+              <div className="flex flex-wrap items-center justify-center gap-2 w-full">
+                <span className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">Popular:</span>
+                {popularSearches.slice(0, 6).map((term) => (
+                  <button
+                    key={term}
+                    onClick={() => handleSearch()}
+                    className="px-3 py-1.5 rounded-full bg-muted text-foreground text-xs font-medium hover:bg-primary-soft hover:text-primary transition-all"
+                  >
+                    {term}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </PageContainer>
+        </section>
+
+        {/* PROMO BANNER */}
+        <section className="bg-background">
+          <PageContainer>
+            <div
+              className="rounded-2xl p-6 sm:p-8 relative overflow-hidden cursor-pointer"
+              style={{ background: promo.gradient }}
+              onClick={() => {
+                if (promoIdx === 0) toast("Promo code FIRST30 applied! 30% off your first booking.", "#7456D0");
+                else if (promoIdx === 1) handleRegister();
+                else toast("Referral link copied! Share with friends to earn ₹200.", "#5BE7C4");
+              }}
+            >
+              <div className="absolute -right-6 -top-6 w-32 h-32 rounded-full opacity-20 bg-white" />
+              <div className="absolute -right-2 bottom-2 w-20 h-20 rounded-full opacity-10 bg-white" />
+              <div className="relative flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div>
+                  <span className="text-xs font-semibold text-white/70 uppercase tracking-wider">{promo.label}</span>
+                  <p className="text-white font-bold text-lg sm:text-xl mt-1 leading-snug" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                    {promo.title}
+                  </p>
+                </div>
+                <div className="inline-block bg-white text-sm font-bold px-5 py-2.5 rounded-xl shrink-0 self-start sm:self-auto" style={{ color: "#7456D0" }}>
+                  {promo.cta}
+                </div>
+              </div>
+              <div className="flex justify-center gap-1.5 mt-4">
+                {promos.map((_, i) => (
+                  <button
+                    key={i}
+                    onClick={(e) => { e.stopPropagation(); setPromoIdx(i); }}
+                    className="rounded-full transition-all"
+                    style={{ width: i === promoIdx ? 24 : 8, height: 6, background: "rgba(255,255,255,0.5)" }}
+                    aria-label={`Show promo ${i + 1}`}
+                  />
+                ))}
+              </div>
+            </div>
+          </PageContainer>
+        </section>
+
+        {/* SERVICE CATEGORIES */}
+        <section className="bg-background">
+          <PageContainer>
+            <SectionHeader
+              title="Explore Top Service Categories"
+              subtitle="Choose from verified trades ready to help you today"
+              actionLabel="View All Categories"
+              onActionClick={() => handleSearch()}
+            />
+            {categoriesLoading ? (
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-5">
+                {Array.from({ length: 8 }).map((_, i) => (
+                  <div key={i} className="h-40 bg-muted rounded-2xl animate-pulse" />
+                ))}
+              </div>
+            ) : categories.length === 0 ? (
+              <ComingSoonState />
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-5">
+                {categories.map((c) => {
+                  const style = getCategoryStyle(c.name);
+                  return (
+                    <button
+                      key={c.id}
+                      onClick={() => handleSearch()}
+                      className="bg-card border border-border rounded-2xl p-5 sm:p-6 text-left flex flex-col gap-3 hover:border-primary hover:shadow-sm transition-all group min-h-[160px]"
+                    >
+                      <div
+                        className="w-12 h-12 rounded-xl flex items-center justify-center text-2xl shrink-0"
+                        style={{ background: style.bg }}
+                      >
+                        {style.icon}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h3 className="font-bold text-foreground text-sm sm:text-base truncate" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                          {c.name}
+                        </h3>
+                        {c.description && (
+                          <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{c.description}</p>
+                        )}
+                      </div>
+                      <div className="mt-auto flex items-center justify-between">
+                        <span className="text-xs text-muted-foreground">Available</span>
+                        <span className="text-xs font-semibold text-primary group-hover:translate-x-0.5 transition-transform">Browse →</span>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </PageContainer>
+        </section>
+
+        {/* MOST POPULAR SERVICES */}
+        <PopularServicesSection toast={toast} onNavigate={onNavigate} />
+
+        {/* TOP HELPERS */}
+        <section className="bg-muted/30">
+          <PageContainer>
+            <SectionHeader
+              title="Top-Rated Local Helpers"
+              subtitle="Certified, background-checked professionals in your neighbourhood"
+            />
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
+              {ALL_PROVIDERS.slice(0, 3).map((p) => (
+                <ProviderCard key={p.id} p={p} onClick={() => handleSearch()} />
+              ))}
+            </div>
+          </PageContainer>
+        </section>
+
+        {/* HOW IT WORKS */}
+        <section className="bg-background">
+          <PageContainer>
+            <SectionHeader
+              title="How Helpers Works"
+              subtitle="From booking to job completion in 3 simple steps"
+            />
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-5">
+              {[
+                {
+                  step: "1",
+                  title: "Choose & Customize",
+                  description: "Select your preferred service, pick date and time, and review your address.",
+                  color: "#7456D0",
+                  bg: "rgba(116,86,208,0.10)",
+                },
+                {
+                  step: "2",
+                  title: "Matched with Vetted Pro",
+                  description: "Background-checked, trade-qualified helper confirms your appointment with live ETA tracking.",
+                  color: "#4FC0E8",
+                  bg: "rgba(79,192,232,0.10)",
+                },
+                {
+                  step: "3",
+                  title: "Done & Guaranteed",
+                  description: "Work completed to spec. Pay securely through the platform. Rate and review your experience.",
+                  color: "#5BE7C4",
+                  bg: "rgba(91,231,196,0.10)",
+                },
+              ].map((s) => (
+                <div
+                  key={s.step}
+                  className="bg-card border border-border rounded-2xl p-6 flex flex-col gap-3"
+                >
+                  <div
+                    className="w-11 h-11 rounded-full flex items-center justify-center text-base font-bold shrink-0"
+                    style={{ background: s.bg, color: s.color }}
+                  >
+                    {s.step}
+                  </div>
+                  <h3 className="font-bold text-foreground text-base" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                    {s.title}
+                  </h3>
+                  <p className="text-sm text-muted-foreground leading-relaxed">{s.description}</p>
+                </div>
+              ))}
+            </div>
+          </PageContainer>
+        </section>
+
+        {/* TESTIMONIALS */}
+        <section className="bg-muted/30">
+          <PageContainer>
+            <SectionHeader
+              title="Loved by Homeowners"
+              subtitle="Real feedback from verified bookings"
+            />
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
+              {testimonials.map((t) => (
+                <div key={t.id} className="bg-card border border-border rounded-2xl p-6 flex flex-col gap-4 h-full">
+                  <div className="flex items-center gap-3">
+                    <div
+                      className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm shrink-0"
+                      style={{ background: t.avatarColor }}
+                    >
+                      {t.avatar}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-bold text-foreground text-sm">{t.name}</p>
+                      <p className="text-muted-foreground text-xs">{t.service}</p>
+                    </div>
+                    <div className="flex gap-0.5 shrink-0">
+                      {Array.from({ length: t.rating }).map((_, i) => (
+                        <Star key={i} size={12} fill="#F59E0B" stroke="none" />
+                      ))}
+                    </div>
+                  </div>
+                  <p className="text-muted-foreground text-sm leading-relaxed">&ldquo;{t.text}&rdquo;</p>
+                </div>
+              ))}
+            </div>
+          </PageContainer>
+        </section>
+
+        {/* BECOME A HELPER CTA */}
+        <section className="bg-background">
+          <PageContainer>
+            <div
+              className="rounded-3xl p-8 sm:p-10 lg:p-12 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6 lg:gap-10 relative overflow-hidden"
+              style={{
+                background: "linear-gradient(135deg, #1A1B2E 0%, #7456D0 60%, #5BE7C4 130%)",
+              }}
+            >
+              <div className="absolute -right-12 -top-12 w-48 h-48 rounded-full opacity-20 bg-[#4FC0E8] blur-2xl" />
+              <div className="absolute -left-8 bottom-0 w-40 h-40 rounded-full opacity-15 bg-white blur-2xl" />
+              <div className="relative max-w-xl">
+                <span className="inline-block px-2.5 py-1 rounded-full bg-white/15 text-white text-[10px] font-bold uppercase tracking-wider mb-3">
+                  For skilled professionals
+                </span>
+                <h2
+                  className="text-2xl sm:text-3xl lg:text-4xl font-bold text-white leading-tight"
+                  style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}
+                >
+                  Earn on Your Schedule with Helpers
+                </h2>
+                <p className="text-white/80 text-sm sm:text-base mt-3 leading-relaxed">
+                  Keep 90% of your earnings, get instant payouts, choose your jobs, and grow a flexible career with full support.
+                </p>
+                <div className="mt-5 flex flex-col sm:flex-row gap-3">
+                  <button
+                    onClick={handleRegister}
+                    className="h-12 px-6 rounded-xl text-[#7456D0] font-bold bg-white active:scale-95 transition-transform"
+                  >
+                    Apply as a Helper
+                  </button>
+                  <button
+                    onClick={() => toast("Helper dashboard demo coming soon")}
+                    className="h-12 px-6 rounded-xl font-bold text-white border border-white/30 hover:bg-white/10 transition-colors"
+                  >
+                    Explore Helper Dashboard
+                  </button>
+                </div>
+              </div>
+              <div className="relative shrink-0 self-stretch lg:self-auto lg:w-72 bg-white/10 backdrop-blur-sm rounded-2xl p-6 border border-white/15">
+                <p className="text-white/70 text-xs font-semibold uppercase tracking-wider">Flexible Schedule</p>
+                <p className="text-white text-xl sm:text-2xl font-bold mt-2" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                  Earn on Your Schedule
+                </p>
+                <p className="text-white/60 text-xs mt-2">Set your availability and manage jobs on your own terms.</p>
+              </div>
+            </div>
+          </PageContainer>
+        </section>
+
+        {/* TRUST / GUARANTEE */}
+        <section className="bg-muted/30">
+          <PageContainer>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
+              {[
+                { icon: Shield, title: "100% Background Checked", description: "Verified identity & track history" },
+                { icon: ThumbsUp, title: "Happiness Guarantee", description: "Re-work free if not satisfied" },
+                { icon: Zap, title: "Punctual & Fast", description: "Same-day slots & slotted booking" },
+                { icon: Award, title: "Fair Helper Pay", description: "Empowering local tradespeople" },
+              ].map(({ icon: Icon, title, description }) => (
+                <div
+                  key={title}
+                  className="bg-card border border-border rounded-2xl p-5 flex flex-col gap-3"
+                >
+                  <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-primary-soft">
+                    <Icon size={18} className="text-primary" />
+                  </div>
+                  <h3 className="font-bold text-foreground text-sm" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                    {title}
+                  </h3>
+                  <p className="text-xs text-muted-foreground">{description}</p>
+                </div>
+              ))}
+            </div>
+          </PageContainer>
+        </section>
+      </main>
+
+      <PublicFooter
+        popularServices={[
+          { label: "Home Cleaning", onClick: () => handleSearch() },
+          { label: "Plumbing", onClick: () => handleSearch() },
+          { label: "Electrical", onClick: () => handleSearch() },
+          { label: "Handyman & Assembly", onClick: () => handleSearch() },
+        ]}
+        forCustomers={[
+          { label: "Browse All Services", onClick: () => handleSearch() },
+          { label: "How It Works", disabled: true },
+          { label: "Address Book", onClick: handleSignIn },
+          { label: "Help & FAQ", disabled: true },
+        ]}
+        forProfessionals={[
+          { label: "Apply as a Helper", onClick: handleRegister },
+          { label: "Helper Dashboard", disabled: true },
+          { label: "Admin Portal", disabled: true },
+          { label: "Pricing & Fees", disabled: true },
+        ]}
+        legalLinks={[
+          { label: "Privacy Policy", disabled: true },
+          { label: "Terms of Service", disabled: true },
+          { label: "Safety Guidelines", disabled: true },
+        ]}
+      />
+
+      <LocationPicker
+        isOpen={isLocationPickerOpen}
+        onClose={() => setIsLocationPickerOpen(false)}
+      />
     </div>
   );
 }
@@ -4308,7 +4895,7 @@ const SCREEN_TO_ADMIN_PATH: Partial<Record<Screen, string>> = {
 
 function screenFromPath(pathname: string): Screen {
   const clean = pathname.replace(/\/+$/, "") || "/";
-  return ADMIN_ROUTE_TO_SCREEN[clean] ?? "home";
+  return ADMIN_ROUTE_TO_SCREEN[clean] ?? "landing";
 }
 
 function pathForScreen(screen: Screen): string {
@@ -4419,39 +5006,59 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col" style={{ background:"#0F1115" }}>
+    <div className="min-h-screen flex flex-col bg-background text-foreground">
 
-        {!isAuthenticated && !isLoading ? (
-          screen === "register" ? (
+      {/* Initial application loading: shown while auth/session is being resolved. */}
+      {isLoading ? (
+        <LoadingScreen />
+      ) : !isAuthenticated ? (
+        screen === "register" ? (
+          <AuthLayout>
             <RegisterScreen
               onNavigate={(s) => navigate(s === "login" ? "login" : s)}
               onRegistered={(email, otp) => { setRegisterEmail(email); setDemoOtp(otp || ""); }}
               toast={pushToast}
             />
-          ) : screen === "verify-email" ? (
+          </AuthLayout>
+        ) : screen === "verify-email" ? (
+          <AuthLayout>
             <OTPScreen email={registerEmail} demoOtp={demoOtp} onVerified={() => navigate("home")} toast={pushToast} />
-          ) : (
+          </AuthLayout>
+        ) : screen === "landing" ? (
+          <LandingPage
+            onNavigate={navigate}
+            toast={pushToast}
+            onAuthNavigate={(s) => setScreen(s)}
+          />
+        ) : (
+          <AuthLayout>
             <LoginScreen
               onLogin={async (email: string, password: string) => {
                 await login(email, password);
-                // Normal screens bounce to home so the role guard lands on the
-                // right dashboard. For an admin deep-link, keep the current screen
-                // so the guard/effects resolve it (admin → that screen, non-admin → home).
                 if (!SCREEN_TO_ADMIN_PATH[screen]) {
                   setScreen("home");
                 }
               }}
-              onNavigate={(s) => navigate(s === "register" ? "register" : s)}
+              onNavigate={(s) => navigate(s === "landing" ? "landing" : s === "register" ? "register" : s)}
               toast={pushToast}
             />
-          )
-        ) : (
-          <>
-            {/* Toast overlay */}
-            <ToastContainer toasts={toasts} dismiss={dismissToast} />
+          </AuthLayout>
+        )
+      ) : (
+        <>
+          {/* Toast overlay */}
+          <ToastContainer toasts={toasts} dismiss={dismissToast} />
+
+          {/* Customer top header (logo + actions). Only shown for customer role. */}
+          {!isHelper && !isAdmin && (
+            <AppHeader
+              onNotificationsClick={() => toast("Notifications coming soon")}
+              onProfileClick={() => navigate("profile")}
+            />
+          )}
 
             {/* Screen content */}
-            <div className="flex-1 overflow-y-auto px-5 min-h-0" style={{ scrollbarWidth:"none" }}>
+            <div className="flex-1 overflow-y-auto px-5 min-h-0 bg-background" style={{ scrollbarWidth:"none" }}>
               {screen === "home" && <HomeScreen onNavigate={navigate} toast={pushToast} user={user} />}
               {screen === "explore" && <ExploreScreen onNavigate={navigate} toast={pushToast} />}
               {screen === "detail" && (
@@ -4503,15 +5110,15 @@ export default function App() {
 
             {/* Bottom nav */}
             {showBottomNav && (
-              <div className="shrink-0 px-4 pb-4 pt-2" style={{ background:"linear-gradient(to top,#0F1115 80%,transparent)", borderTop:"1px solid #222733" }}>
+              <div className="shrink-0 px-4 pb-4 pt-2 bg-card border-t border-border">
                 <div className="flex items-center justify-around">
                   {navItems.map(({ id, icon:Icon, label }) => {
                     const isActive = activeTab === id;
                     return (
                       <button key={id} onClick={() => navigate(id)} className="flex flex-col items-center gap-1 px-4 py-2 relative">
-                        {isActive && <span className="absolute -top-1 w-8 h-0.5 rounded-full" style={{ background:"#586CFF" }} />}
-                        <Icon size={22} className={isActive?"text-[#586CFF]":"text-[#A5A9B5]"} strokeWidth={isActive?2.5:1.8} />
-                        <span className={`text-[10px] font-semibold ${isActive?"text-[#586CFF]":"text-[#A5A9B5]"}`}>{label}</span>
+                        {isActive && <span className="absolute -top-1 w-8 h-0.5 rounded-full bg-primary" />}
+                        <Icon size={22} className={isActive?"text-primary":"text-muted-foreground"} strokeWidth={isActive?2.5:1.8} />
+                        <span className={`text-[10px] font-semibold ${isActive?"text-primary":"text-muted-foreground"}`}>{label}</span>
                       </button>
                     );
                   })}

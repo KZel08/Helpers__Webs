@@ -22,16 +22,24 @@ export function useServices(params?: {
       const res = await servicesApi.list(params);
       if (currentRequestId !== requestIdRef.current) return;
 
-      setServices((prev) => {
-        if (page <= 1) return res.services;
+      // Defensive: backend may return either { services, total } or a raw array.
+      const servicesList = Array.isArray(res)
+        ? (res as unknown as ServiceData[])
+        : (res?.services ?? []);
+      const totalCount = Array.isArray(res)
+        ? (res as unknown as ServiceData[]).length
+        : (res?.total ?? 0);
 
-        const merged = [...prev, ...res.services];
+      setServices((prev) => {
+        if (page <= 1) return servicesList;
+
+        const merged = [...prev, ...servicesList];
         const unique = new Map<string, ServiceData>();
 
         merged.forEach((service) => unique.set(service.id, service));
         return Array.from(unique.values());
       });
-      setTotal(res.total);
+      setTotal(totalCount);
     } catch (err) {
       if (currentRequestId !== requestIdRef.current) return;
       setError(err instanceof Error ? err.message : 'Failed to load services');

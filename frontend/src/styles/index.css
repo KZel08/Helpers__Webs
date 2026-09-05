@@ -1,3 +1,175 @@
 @import './fonts.css';
 @import './tailwind.css';
 @import './theme.css';
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   HELPERS — Global Styles (Light Theme)
+   Locked palette:
+   - Primary Purple: #7456D0
+   - Sky Blue:       #4FC0E8
+   - Mint Green:     #5BE7C4
+   - Light BG:       #F8F7FB
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Body & Root ───────────────────────────────────────────────────────── */
+body {
+  background-color: var(--background);
+  color: var(--foreground);
+  font-family: 'Inter', sans-serif;
+  margin: 0;
+  padding: 0;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#root {
+  min-height: 100%;
+}
+
+/* ── Scrollbar (subtle, brand-tinted) ───────────────────────────────────── */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--primary);
+}
+
+/* ── Selection ──────────────────────────────────────────────────────────── */
+::selection {
+  background-color: var(--primary);
+  color: #ffffff;
+}
+
+/* ── Subtle Glow Effects (use sparingly) ─────────────────────────────────── */
+.glow-primary {
+  box-shadow: 0 0 0 3px rgba(116, 86, 208, 0.15);
+}
+
+.glow-secondary {
+  box-shadow: 0 0 0 3px rgba(79, 192, 232, 0.15);
+}
+
+/* ── Animations ─────────────────────────────────────────────────────────── */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.3s ease-out forwards;
+}
+
+@keyframes slideInRight {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+.animate-slide-in-right {
+  animation: slideInRight 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes slideInUp {
+  from {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.animate-slide-in-up {
+  animation: slideInUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes scaleIn {
+  from {
+    transform: scale(0.95);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.animate-scale-in {
+  animation: scaleIn 0.2s ease-out forwards;
+}
+
+@keyframes pulseSoft {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+.animate-pulse-soft {
+  animation: pulseSoft 1.6s ease-in-out infinite;
+}
+
+/* ── Card Surfaces (light theme) ────────────────────────────────────────── */
+.card-elevated {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 1px 2px rgba(26, 27, 46, 0.04), 0 1px 1px rgba(26, 27, 46, 0.02);
+}
+
+.card-soft {
+  background: var(--muted);
+  border: 1px solid transparent;
+  border-radius: var(--radius-lg);
+}
+
+/* ── Tinted Surfaces (semantic) ─────────────────────────────────────────── */
+.surface-primary {
+  background-color: var(--primary-soft);
+  color: var(--primary);
+}
+.surface-secondary {
+  background-color: var(--secondary-soft);
+  color: var(--info-foreground);
+}
+.surface-accent {
+  background-color: var(--accent-soft);
+  color: var(--accent-foreground);
+}
+
+/* ── Tap highlight reset ───────────────────────────────────────────────── */
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* ── Focus visibility ──────────────────────────────────────────────────── */
+*:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(116, 86, 208, 0.15);
+}
