@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useCategories } from "../hooks/useCategories";
 import { useServices, useService } from "../hooks/useServices";
 import { useAddresses } from "../hooks/useAddresses";
@@ -22,6 +22,7 @@ import { PublicFooter } from "./components/layout/PublicFooter";
 import { ServiceMarketplaceCard } from "./components/layout/ServiceMarketplaceCard";
 import { LocationPicker } from "./components/location/LocationPicker";
 import { useLocationContext } from "../contexts/LocationContext";
+import type { ResolvedLocation } from "../lib/location";
 import {
   MapPin, Bell, Search, Star, ChevronRight, Home, Grid,
   CalendarCheck, User, Sparkles, Zap, Shield, Clock,
@@ -37,16 +38,12 @@ import {
  *  Uses the current year. No external library needed.
  *  Returns null if parsing fails.
  */
-function buildBookingIso(dateLabel: string, timeLabel: string): string | null {
-  const MONTHS: Record<string, number> = {
-    Jan: 0, Feb: 1, Mar: 2, Apr: 3, May: 4, Jun: 5,
-    Jul: 6, Aug: 7, Sep: 8, Oct: 9, Nov: 10, Dec: 11,
-  };
-  const [dayStr, monthStr] = dateLabel.trim().split(" ");
-  const day = parseInt(dayStr, 10);
-  const monthNum = MONTHS[monthStr];
-  if (isNaN(day) || monthNum === undefined) return null;
-
+/**
+ * Combine a pre-built ISO date (YYYY-MM-DD) and a time label (e.g. "10:00 AM")
+ * into a full ISO timestamp. The ISO date is generated from a real Date
+ * object elsewhere, so we never need to parse fragile display strings.
+ */
+function buildBookingIso(isoDate: string, timeLabel: string): string | null {
   // Parse time: e.g. "08:00 AM", "2:00 PM", "12:00 PM"
   const timeParts = timeLabel.trim().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
   if (!timeParts) return null;
@@ -56,10 +53,37 @@ function buildBookingIso(dateLabel: string, timeLabel: string): string | null {
   if (meridiem === "AM" && hours === 12) hours = 0;
   if (meridiem === "PM" && hours !== 12) hours += 12;
 
-  const year = new Date().getFullYear();
-  const d = new Date(year, monthNum, day, hours, minutes, 0, 0);
+  // Parse the YYYY-MM-DD parts. Build a local-time Date so the timezone
+  // does not shift the calendar day unexpectedly.
+  const dateParts = isoDate.split("-");
+  if (dateParts.length !== 3) return null;
+  const year = parseInt(dateParts[0], 10);
+  const month = parseInt(dateParts[1], 10) - 1;
+  const day = parseInt(dateParts[2], 10);
+  if (isNaN(year) || isNaN(month) || isNaN(day)) return null;
+
+  const d = new Date(year, month, day, hours, minutes, 0, 0);
   if (isNaN(d.getTime())) return null;
   return d.toISOString();
+}
+
+/**
+ * Format a Date object as a short display label (e.g. "11 Jul").
+ */
+function formatShortDate(d: Date): string {
+  const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  return d.getDate() + " " + months[d.getMonth()];
+}
+
+/**
+ * Format a Date object as a local YYYY-MM-DD string. We build this manually
+ * (not via toISOString) so the timezone does not shift the calendar day.
+ */
+function formatLocalIsoDate(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return y + "-" + m + "-" + day;
 }
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -104,23 +128,10 @@ const testimonials = [
 
 const trendingSearches = ["AC Repair","Deep Clean","Electrician","Haircut at Home","Plumber","Pest Control"];
 
-const recentlyBooked = [
-  { id:"r1", label:"Cleaning", provider:"Arjun M.", img:"https://images.unsplash.com/photo-1581578731548-c64695cc6952?w=100&h=100&fit=crop&auto=format", providerId:"1" },
-  { id:"r2", label:"Salon",    provider:"Priya S.", img:"https://images.unsplash.com/photo-1560066984-138dadb4c035?w=100&h=100&fit=crop&auto=format", providerId:"2" },
-  { id:"r3", label:"Plumbing", provider:"Ravi K.",  img:"https://images.unsplash.com/photo-1607472586893-edb57bdc0e39?w=100&h=100&fit=crop&auto=format", providerId:"3" },
-];
-
 const promos = [
   { label:"Limited offer",  title:"30% off your first\nhome cleaning!",        cta:"Claim Now",    gradient:"linear-gradient(135deg,#7456D0 0%,#4FC0E8 100%)" },
   { label:"Members only",   title:"Free priority booking\nwith Helpers Plus",  cta:"Upgrade Free", gradient:"linear-gradient(135deg,#5BE7C4 0%,#4FC0E8 100%)" },
   { label:"Refer & earn",   title:"Get ₹200 credit for\nevery friend you refer",cta:"Share Now",   gradient:"linear-gradient(135deg,#5BE7C4 0%,#7456D0 100%)" },
-];
-
-const liveActivity = [
-  { msg:"Vikram just booked a Plumber in Andheri",           time:"2m ago", dot:"#7456D0" },
-  { msg:"Ananya rated Priya Sharma ⭐⭐⭐⭐⭐",              time:"5m ago", dot:"#F59E0B" },
-  { msg:"12 helpers available near Bandra right now",        time:"Live",   dot:"#5BE7C4" },
-  { msg:"Rohan rebooked Deep Cleaning for this Sunday",      time:"8m ago", dot:"#7456D0" },
 ];
 
 // ─── Toast system ─────────────────────────────────────────────────────────────
@@ -186,7 +197,7 @@ function getCategoryStyle(name: string) {
 // ─── Shared sub-components ────────────────────────────────────────────────────
 
 // Backend status → display mapping for BookingsScreen
-type ApiBookingStatus = "PENDING" | "ACCEPTED" | "ONGOING" | "COMPLETED" | "CANCELLED";
+type ApiBookingStatus = "PENDING" | "ACCEPTED" | "ONGOING" | "COMPLETED" | "CANCELLED" | "REFUNDED";
 
 function BookingStatusPill({ status }: { status: string }) {
   const map: Record<string, { label: string; cls: string }> = {
@@ -542,9 +553,30 @@ function ComingSoonState({ onNavigate }: { onNavigate?: (s: Screen, id?: string)
 
 // ─── Home screen ──────────────────────────────────────────────────────────────
 
-function HomeScreen({ onNavigate, toast, user }: { onNavigate: (s: Screen, id?: string) => void; toast: (msg: string, color?: string) => void; user: { firstName?: string; lastName?: string; email?: string } | null }) {
+function HomeScreen({ onNavigate, toast, user, onOpenLocationPicker }: { onNavigate: (s: Screen, id?: string) => void; toast: (msg: string, color?: string) => void; user: { firstName?: string; lastName?: string; email?: string } | null; onOpenLocationPicker: () => void }) {
   const [promoIdx, setPromoIdx] = useState(0);
   const { categories, isLoading: categoriesLoading, error: categoriesError, refetch } = useCategories();
+  const { location: activeLocation, status: locationStatus } = useLocationContext();
+  const [topHelpers, setTopHelpers] = useState<HelperProfileData[]>([]);
+  const [helpersLoading, setHelpersLoading] = useState(true);
+  const [helpersError, setHelpersError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setHelpersLoading(true);
+      setHelpersError(null);
+      try {
+        const res = await helpersApi.list({ page: 1, limit: 3 });
+        if (!cancelled) setTopHelpers(res.helpers ?? []);
+      } catch (err) {
+        if (!cancelled) setHelpersError(err instanceof Error ? err.message : "Failed to load helpers");
+      } finally {
+        if (!cancelled) setHelpersLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   useEffect(() => {
     const t = setInterval(() => setPromoIdx((i) => (i + 1) % promos.length), 3500);
@@ -554,6 +586,14 @@ function HomeScreen({ onNavigate, toast, user }: { onNavigate: (s: Screen, id?: 
   const promo = promos[promoIdx];
   const displayName = user ? [user.firstName, user.lastName].filter(Boolean).join(" ") : "";
   const greeting = displayName ? `Hello, ${displayName}` : "Welcome to Helpers";
+
+  const homeLocationLabel = (() => {
+    if (locationStatus === "detecting") return "Detecting location...";
+    if (!activeLocation) return "Choose location";
+    if (activeLocation.city && activeLocation.state) return `${activeLocation.city}, ${activeLocation.state}`;
+    if (activeLocation.city) return activeLocation.city;
+    return activeLocation.label || "Choose location";
+  })();
 
   const handlePromoCta = () => {
     if (promoIdx === 0) toast("Promo code FIRST30 applied! 30% off your first booking.", "#7456D0");
@@ -567,16 +607,13 @@ function HomeScreen({ onNavigate, toast, user }: { onNavigate: (s: Screen, id?: 
       {/* Header */}
       <div className="flex items-start justify-between pt-2">
         <div>
-          <button onClick={() => toast("Location services coming soon")} className="flex items-center gap-1.5 text-muted-foreground text-sm mb-0.5">
+          <button onClick={onOpenLocationPicker} className="flex items-center gap-1.5 text-muted-foreground text-sm mb-0.5">
             <MapPin size={13} className="text-primary" />
-            <span>Mumbai, India</span>
+            <span>{homeLocationLabel}</span>
             <ChevronRight size={13} />
           </button>
           <h1 className="text-xl font-bold text-foreground" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>{greeting}</h1>
         </div>
-        <button onClick={() => toast("Notifications coming soon")} className="relative w-10 h-10 rounded-full bg-muted flex items-center justify-center active:scale-90 transition-transform">
-          <Bell size={18} className="text-foreground" />
-        </button>
       </div>
 
       {/* Search */}
@@ -654,11 +691,42 @@ function HomeScreen({ onNavigate, toast, user }: { onNavigate: (s: Screen, id?: 
       {/* Top Helpers */}
       <div>
         <div className="flex items-center justify-between mb-3">
-          <h2 className="font-bold text-foreground" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>Top Helpers Nearby</h2>
+          <h2 className="font-bold text-foreground" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>Top-Rated Local Helpers</h2>
           <button onClick={() => onNavigate("explore")} className="text-primary text-sm font-semibold">See all</button>
         </div>
         <div className="flex flex-col gap-3">
-          {ALL_PROVIDERS.slice(0,3).map((p) => <ProviderCard key={p.id} p={p} onClick={() => onNavigate("explore")} />)}
+          {helpersLoading ? (
+            <div className="h-24 bg-muted rounded-2xl animate-pulse" />
+          ) : helpersError ? (
+            <div className="rounded-2xl border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+              {helpersError}
+            </div>
+          ) : topHelpers.length === 0 ? (
+            <div className="text-center py-6">
+              <p className="text-muted-foreground text-sm">No verified helpers available right now.</p>
+            </div>
+          ) : (
+            topHelpers.slice(0, 3).map((h) => {
+              const firstName = h.user?.firstName ?? "";
+              const lastName = h.user?.lastName ?? "";
+              const name = (firstName + " " + lastName).trim() || "Helper";
+              const role = h.bio?.trim() || "Service professional";
+              const rating = typeof h.rating === "string" ? parseFloat(h.rating) || 0 : Number(h.rating) || 0;
+              const provider: Provider = {
+                id: h.id,
+                name,
+                role,
+                rating,
+                reviews: h.totalReviews,
+                price: h.hourlyRate ? "₹" + h.hourlyRate + "/hr" : "Contact for pricing",
+                img: h.user?.avatarUrl || "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&h=200&fit=crop&auto=format",
+                badge: h.verificationStatus === "VERIFIED" ? "Verified" : undefined,
+                tags: h.verificationStatus === "VERIFIED" ? ["Verified"] : [],
+                category: h.services && h.services.length > 0 ? String(h.services[0]) : "General",
+              };
+              return <ProviderCard key={h.id} p={provider} onClick={() => onNavigate("explore")} />;
+            })
+          )}
         </div>
       </div>
 
@@ -946,15 +1014,30 @@ function BookingScreen({
 }) {
   const { addresses, isLoading: addressesLoading, error: addressesError, refetch } = useAddresses();
   const { service, isLoading: serviceLoading, error: serviceError, refetch: refetchService } = useService(serviceId);
-  const [selectedDate, setSelectedDate] = useState("12 Jul");
+  const [selectedDateIso, setSelectedDateIso] = useState<string>(() => {
+    const d = new Date();
+    d.setHours(10, 0, 0, 0);
+    return formatLocalIsoDate(d);
+  });
   const [selectedTime, setSelectedTime] = useState("10:00 AM");
   const [promoInput, setPromoInput] = useState("");
-  const [promoApplied, setPromoApplied] = useState(false);
-  const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null);
+  // Generate booking date options dynamically from the current date.
+  // Each option has a display label (e.g. "11 Jul") and a real ISO date
+  // (YYYY-MM-DD) so the displayed date always matches the ISO date sent
+  // to the backend. Same-day booking is preserved (start from today).
+  const dateOptions = useMemo(() => {
+    const out: { label: string; isoDate: string }[] = [];
+    const now = new Date();
+    for (let i = 0; i < 5; i++) {
+      const d = new Date(now);
+      d.setDate(now.getDate() + i);
+      out.push({ label: formatShortDate(d), isoDate: formatLocalIsoDate(d) });
+    }
+    return out;
+  }, []);
+  const times = ["08:00 AM","10:00 AM","12:00 PM","2:00 PM","4:00 PM","6:00 PM"];
   const [showAddressPicker, setShowAddressPicker] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const dates = ["11 Jul","12 Jul","13 Jul","14 Jul","15 Jul"];
-  const times = ["08:00 AM","10:00 AM","12:00 PM","2:00 PM","4:00 PM","6:00 PM"];
 
   const servicePrice = typeof service?.price === "number" ? service.price : 0;
   const discount = promoApplied ? 180 : 0;
@@ -1008,7 +1091,7 @@ function BookingScreen({
       return;
     }
 
-    const isoTimestamp = buildBookingIso(selectedDate, selectedTime);
+    const isoTimestamp = buildBookingIso(selectedDateIso, selectedTime);
     if (!isoTimestamp) {
       toast("Could not parse selected date/time. Please reselect.", "#EF4444");
       return;
@@ -1044,9 +1127,12 @@ function BookingScreen({
       <div>
         <h3 className="font-bold text-foreground mb-3" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>Select Date</h3>
         <div className="flex gap-2 overflow-x-auto pb-1" style={{ scrollbarWidth:"none" }}>
-          {dates.map((d) => (
-            <button key={d} onClick={() => setSelectedDate(d)} className={`shrink-0 px-4 py-2.5 rounded-xl text-sm font-semibold transition-colors ${selectedDate===d?"bg-primary text-white":"bg-muted text-muted-foreground hover:text-foreground"}`}>{d}</button>
-          ))}
+          {dateOptions.map((opt) => {
+            const isSelected = selectedDateIso === opt.isoDate;
+            return (
+              <button key={opt.isoDate} onClick={() => setSelectedDateIso(opt.isoDate)} className={`shrink-0 px-4 py-2.5 rounded-xl text-sm font-semibold transition-colors ${isSelected?"bg-primary text-white":"bg-muted text-muted-foreground hover:text-foreground"}`}>{opt.label}</button>
+            );
+          })}
         </div>
       </div>
 
@@ -1224,18 +1310,43 @@ interface AddressFormValues {
   isDefault: boolean;
 }
 
-function toAddressFormValues(address?: Partial<AddressData> | null): AddressFormValues {
+function toAddressFormValues(address?: Partial<AddressData> | null, prefillLocation?: ResolvedLocation | null): AddressFormValues {
+  // For the EDIT flow, address is provided and we use its data.
+  // For the CREATE flow, if no address is provided but a resolved
+  // location is available, we prefill coordinates (and city/state
+  // when present) from the active LocationContext. The user can still
+  // override any field manually.
+  if (address) {
+    return {
+      label: address.label ?? "",
+      houseNo: address.houseNo ?? "",
+      street: address.street ?? "",
+      city: address.city ?? "",
+      state: address.state ?? "",
+      country: address.country ?? "",
+      postalCode: address.postalCode ?? "",
+      latitude: address.latitude != null ? String(address.latitude) : "",
+      longitude: address.longitude != null ? String(address.longitude) : "",
+      isDefault: Boolean(address.isDefault),
+    };
+  }
   return {
-    label: address?.label ?? "",
-    houseNo: address?.houseNo ?? "",
-    street: address?.street ?? "",
-    city: address?.city ?? "",
-    state: address?.state ?? "",
-    country: address?.country ?? "",
-    postalCode: address?.postalCode ?? "",
-    latitude: address?.latitude != null ? String(address.latitude) : "",
-    longitude: address?.longitude != null ? String(address.longitude) : "",
-    isDefault: Boolean(address?.isDefault),
+    label: "",
+    houseNo: "",
+    street: "",
+    city: prefillLocation?.city ?? "",
+    state: prefillLocation?.state ?? "",
+    country: prefillLocation?.country ?? "",
+    postalCode: "",
+    latitude:
+      prefillLocation?.latitude != null
+        ? String(prefillLocation.latitude)
+        : "",
+    longitude:
+      prefillLocation?.longitude != null
+        ? String(prefillLocation.longitude)
+        : "",
+    isDefault: false,
   };
 }
 
@@ -1274,17 +1385,30 @@ function AddressFormModal({
   isSubmitting: boolean;
   submitError: string | null;
 }) {
-  const [form, setForm] = useState<AddressFormValues>(toAddressFormValues(initialAddress));
+  const { location: activeLocation } = useLocationContext();
+  const [form, setForm] = useState<AddressFormValues>(() =>
+    toAddressFormValues(initialAddress, activeLocation),
+  );
   const [localError, setLocalError] = useState<string | null>(null);
+  // Tracks whether the user has manually edited the form so we never
+  // overwrite user-entered values with a location-context update.
+  const userEditedRef = useRef(false);
 
   useEffect(() => {
-    setForm(toAddressFormValues(initialAddress));
+    // When the modal opens, only seed the form from the active location
+    // if there is no existing address AND the user hasn't already typed
+    // something. We do this on isOpen transitions, not on every location
+    // change, to avoid clobbering user edits.
+    if (isOpen && !initialAddress && !userEditedRef.current) {
+      setForm(toAddressFormValues(null, activeLocation));
+    }
     setLocalError(null);
-  }, [initialAddress, isOpen]);
+  }, [initialAddress, isOpen, activeLocation]);
 
   if (!isOpen) return null;
 
   const updateField = (field: keyof AddressFormValues, value: string | boolean) => {
+    userEditedRef.current = true;
     setForm((prev) => ({ ...prev, [field]: value }));
   };
 
@@ -4426,11 +4550,10 @@ function PopularServicesSection({
 
 // ─── Landing page (public/landing) ────────────────────────────────────────────
 
-function LandingPage({ onNavigate, toast, onAuthNavigate }: { onNavigate: (s: Screen, id?: string) => void; toast: (msg: string, color?: string) => void; onAuthNavigate: (s: "login" | "register") => void }) {
+function LandingPage({ onNavigate, toast, onAuthNavigate, onOpenLocationPicker }: { onNavigate: (s: Screen, id?: string) => void; toast: (msg: string, color?: string) => void; onAuthNavigate: (s: "login" | "register") => void; onOpenLocationPicker: () => void }) {
   const [searchQuery, setSearchQuery] = useState("");
   const { categories, isLoading: categoriesLoading } = useCategories();
   const [promoIdx, setPromoIdx] = useState(0);
-  const [isLocationPickerOpen, setIsLocationPickerOpen] = useState(false);
   const { location, status: locationStatus } = useLocationContext();
 
   const popularSearches = [
@@ -4483,7 +4606,7 @@ function LandingPage({ onNavigate, toast, onAuthNavigate }: { onNavigate: (s: Sc
         onRegister={handleRegister}
         onLogoClick={handleLogo}
         onSearchSubmit={() => handleSearch()}
-        onLocationClick={() => setIsLocationPickerOpen(true)}
+        onLocationClick={onOpenLocationPicker}
       />
 
       <main className="flex-1">
@@ -4532,7 +4655,7 @@ function LandingPage({ onNavigate, toast, onAuthNavigate }: { onNavigate: (s: Sc
                 <div className="hidden sm:block w-px h-8 bg-border" />
                 <button
                   type="button"
-                  onClick={() => setIsLocationPickerOpen(true)}
+                  onClick={onOpenLocationPicker}
                   className="flex items-center gap-2 flex-1 px-2 h-12 sm:h-14 border-t sm:border-t-0 border-border text-left"
                 >
                   <MapPin size={18} className="text-muted-foreground shrink-0" />
@@ -4863,11 +4986,6 @@ function LandingPage({ onNavigate, toast, onAuthNavigate }: { onNavigate: (s: Sc
           { label: "Safety Guidelines", disabled: true },
         ]}
       />
-
-      <LocationPicker
-        isOpen={isLocationPickerOpen}
-        onClose={() => setIsLocationPickerOpen(false)}
-      />
     </div>
   );
 }
@@ -4911,6 +5029,7 @@ export default function App() {
   const [toasts, setToasts]           = useState<{ id:number; msg:string; color?:string }[]>([]);
   const [registerEmail, setRegisterEmail] = useState("");
   const [demoOtp, setDemoOtp] = useState("");
+  const [isLocationPickerOpen, setIsLocationPickerOpen] = useState(false);
   const toastId = useState(0);
 
   const { isAuthenticated, isLoading, login, logout, user } = useAuth();
@@ -4952,15 +5071,7 @@ export default function App() {
     { id:"profile"  as Screen, icon:User,          label:"Profile"  },
   ];
 
-  useEffect(() => {
-    if (isAuthenticated && isHelper && screen === 'home') {
-      setScreen('helper-dashboard');
-      setPrevScreen('helper-dashboard');
-    } else if (isAuthenticated && isAdmin && screen === 'home') {
-      setScreen('admin-dashboard');
-      setPrevScreen('admin-dashboard');
-    }
-  }, [isAuthenticated, isHelper, isAdmin, screen]);
+useEffect(() => {    if (!isAuthenticated || isLoading) return;    if (screen === 'landing' || screen === 'home') {      if (isAdmin) {        setScreen('admin-dashboard');        setPrevScreen('admin-dashboard');      } else if (isHelper) {        setScreen('helper-dashboard');        setPrevScreen('helper-dashboard');      } else {        setScreen('home');        setPrevScreen('home');      }    }  }, [isAuthenticated, isLoading, isHelper, isAdmin, screen]);
 
   useEffect(() => {
     // Keep the URL/screen untouched while unauthenticated (the login screen is
@@ -5029,6 +5140,7 @@ export default function App() {
             onNavigate={navigate}
             toast={pushToast}
             onAuthNavigate={(s) => setScreen(s)}
+            onOpenLocationPicker={() => setIsLocationPickerOpen(true)}
           />
         ) : (
           <AuthLayout>
@@ -5054,12 +5166,14 @@ export default function App() {
             <AppHeader
               onNotificationsClick={() => toast("Notifications coming soon")}
               onProfileClick={() => navigate("profile")}
+              onLocationClick={() => setIsLocationPickerOpen(true)}
             />
           )}
 
-            {/* Screen content */}
-            <div className="flex-1 overflow-y-auto px-5 min-h-0 bg-background" style={{ scrollbarWidth:"none" }}>
-              {screen === "home" && <HomeScreen onNavigate={navigate} toast={pushToast} user={user} />}
+            {/* Screen content — full-bleed background, centered max-w content */}
+            <div className="flex-1 overflow-y-auto min-h-0 bg-background" style={{ scrollbarWidth:"none" }}>
+              <div className="w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8 pb-24">
+              {screen === "home" && <HomeScreen onNavigate={navigate} toast={pushToast} user={user} onOpenLocationPicker={() => setIsLocationPickerOpen(true)} />}
               {screen === "explore" && <ExploreScreen onNavigate={navigate} toast={pushToast} />}
               {screen === "detail" && (
                 <DetailScreen
@@ -5106,6 +5220,7 @@ export default function App() {
               {isAdmin && screen === "admin-categories" && <AdminCategoriesScreen onBack={goBack} toast={pushToast} />}
               {isAdmin && screen === "admin-services" && <AdminServicesScreen onBack={goBack} toast={pushToast} />}
               {isAdmin && screen === "admin-service-requests" && <AdminServiceRequestsScreen onBack={goBack} toast={pushToast} />}
+              </div>
             </div>
 
             {/* Bottom nav */}
@@ -5135,6 +5250,11 @@ export default function App() {
             )}
           </>
         )}
+
+      <LocationPicker
+        isOpen={isLocationPickerOpen}
+        onClose={() => setIsLocationPickerOpen(false)}
+      />
     </div>
   );
 }

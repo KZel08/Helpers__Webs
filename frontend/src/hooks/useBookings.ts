@@ -25,12 +25,20 @@ export function useBookings(role: 'customer' | 'helper' = 'customer') {
 
   const cancelBooking = useCallback(
     async (id: string) => {
-      await bookingsApi.cancel(id);
-      setBookings((prev) =>
-        prev.map((b) => (b.id === id ? { ...b, status: 'CANCELLED' } : b)),
-      );
+      // Backend cancels via soft delete: sets status=CANCELLED and deletedAt.
+      // The list endpoint filters by deletedAt=null, so after a successful
+      // cancel the booking should disappear. We do NOT mutate the booking
+      // optimistically. Instead, refetch to sync with the backend.
+      try {
+        await bookingsApi.cancel(id);
+      } catch (err) {
+        // Rethrow so callers can surface the error and the booking remains
+        // visible in the UI.
+        throw err;
+      }
+      await fetchBookings();
     },
-    [],
+    [fetchBookings],
   );
 
   return { bookings, isLoading, error, refetch: fetchBookings, cancelBooking };
