@@ -206,6 +206,7 @@ function BookingStatusPill({ status }: { status: string }) {
     ONGOING:   { label: "Ongoing",   cls: "text-[#4FC0E8] bg-[rgba(79,192,232,0.15)]"   },
     COMPLETED: { label: "Completed", cls: "text-[#0B3D2E] bg-accent-soft"   },
     CANCELLED: { label: "Cancelled", cls: "text-destructive bg-destructive/10"   },
+    REFUNDED:  { label: "Refunded",  cls: "text-[#5BE7C4] bg-[rgba(91,231,196,0.15)]"   },
   };
   const entry = map[status] ?? { label: status, cls: "text-muted-foreground bg-muted" };
   return <span className={`text-xs font-semibold px-2.5 py-1 rounded-full shrink-0 ${entry.cls}`}>{entry.label}</span>;
@@ -5011,8 +5012,15 @@ const SCREEN_TO_ADMIN_PATH: Partial<Record<Screen, string>> = {
   "admin-service-requests": "/admin/service-requests",
 };
 
-function screenFromPath(pathname: string): Screen {
+function screenFromPath(pathname: string, userRole?: string): Screen {
   const clean = pathname.replace(/\/+$/, "") || "/";
+  // For root path, we need to consider the user's role
+  if (clean === "/") {
+    if (!userRole) return "landing";
+    if (userRole === "ADMIN") return "admin-dashboard";
+    if (userRole === "helper") return "helper-dashboard";
+    return "home";
+  }
   return ADMIN_ROUTE_TO_SCREEN[clean] ?? "landing";
 }
 
@@ -5021,8 +5029,13 @@ function pathForScreen(screen: Screen): string {
 }
 
 export default function App() {
-  const [screen, setScreen]           = useState<Screen>(() => screenFromPath(window.location.pathname));
-  const [prevScreen, setPrevScreen]   = useState<Screen>("home");
+  const { isAuthenticated, isLoading, login, logout, user } = useAuth();
+
+  const isHelper = user?.role === 'helper';
+  const isAdmin = user?.role === 'ADMIN';
+
+  const [screen, setScreen] = useState<Screen>(() => screenFromPath(window.location.pathname, user?.role));
+  const [prevScreen, setPrevScreen] = useState<Screen>("home");
   const [detailId, setDetailId]       = useState("1");
   const [bookingDetailId, setBookingDetailId] = useState<string | null>(null);
   const [confirmData, setConfirmData] = useState<BookingData | null>(null);
@@ -5031,11 +5044,6 @@ export default function App() {
   const [demoOtp, setDemoOtp] = useState("");
   const [isLocationPickerOpen, setIsLocationPickerOpen] = useState(false);
   const toastId = useState(0);
-
-  const { isAuthenticated, isLoading, login, logout, user } = useAuth();
-
-  const isHelper = user?.role === 'helper';
-  const isAdmin = user?.role === 'ADMIN';
 
   const pushToast = (msg: string, color?: string) => {
     const id = ++toastId[0];
@@ -5096,13 +5104,13 @@ useEffect(() => {    if (!isAuthenticated || isLoading) return;    if (screen ==
   // Browser back/forward support.
   useEffect(() => {
     const onPop = () => {
-      const next = screenFromPath(window.location.pathname);
+      const next = screenFromPath(window.location.pathname, user?.role);
       setScreen(next);
       setPrevScreen(next);
     };
     window.addEventListener("popstate", onPop);
     return () => window.removeEventListener("popstate", onPop);
-  }, []);
+  }, [user?.role]);
 
   const openBookingDetail = (id: string) => {
     setBookingDetailId(id);

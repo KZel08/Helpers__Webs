@@ -29,6 +29,34 @@ export interface ApiError {
   error?: { code: string; details: unknown };
 }
 
+function normalizeRating(value: unknown): number {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string' && value.trim() !== '') {
+    const numeric = Number(value);
+    if (Number.isFinite(numeric)) return numeric;
+  }
+  if (value && typeof value === 'object' && 's' in value && 'e' in value && 'd' in value) {
+    const { s, e, d } = value as { s: number; e: number; d: number[] };
+    if (typeof s === 'number' && typeof e === 'number' && Array.isArray(d) && d.every(n => typeof n === 'number')) {
+      const digits = d.reduce((acc, digit) => acc * 10 + digit, 0);
+      const numeric = s * digits * Math.pow(10, e);
+      if (Number.isFinite(numeric)) return numeric;
+    }
+  }
+  return 0;
+}
+
+function normalizeServiceData(service: ServiceData): ServiceData {
+  if (!service?.helper) return service;
+  return {
+    ...service,
+    helper: {
+      ...service.helper,
+      rating: normalizeRating(service.helper.rating),
+    },
+  };
+}
+
 // ─── Core Fetch Wrapper ──────────────────────────────────────────────────
 
 async function refreshAccessToken(): Promise<string | null> {
@@ -245,11 +273,12 @@ export const servicesApi = {
     if (params?.limit) q.set('limit', String(params.limit));
     if (params?.categoryId) q.set('categoryId', params.categoryId);
     if (params?.search) q.set('search', params.search);
-    return apiFetch<{ services: ServiceData[]; total: number }>(`/services?${q.toString()}`);
+    return apiFetch<{ services: ServiceData[]; total: number }>(`/services?${q.toString()}`)
+      .then((res) => ({ ...res, services: res.services.map(normalizeServiceData) }));
   },
-  get: (id: string) => apiFetch<ServiceData>(`/services/${id}`),
-  create: (body: unknown) => apiFetch<ServiceData>('/services', { method: 'POST', body: JSON.stringify(body) }),
-  update: (id: string, body: unknown) => apiFetch<ServiceData>(`/services/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
+  get: (id: string) => apiFetch<ServiceData>(`/services/${id}`).then(normalizeServiceData),
+  create: (body: unknown) => apiFetch<ServiceData>('/services', { method: 'POST', body: JSON.stringify(body) }).then(normalizeServiceData),
+  update: (id: string, body: unknown) => apiFetch<ServiceData>(`/services/${id}`, { method: 'PUT', body: JSON.stringify(body) }).then(normalizeServiceData),
   delete: (id: string) => apiFetch<{ message: string }>(`/services/${id}`, { method: 'DELETE' }),
 };
 
