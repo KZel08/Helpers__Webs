@@ -863,7 +863,7 @@ function ExploreScreen({ onNavigate, toast }: { onNavigate: (s: Screen, id?: str
 
 // ─── Detail screen ────────────────────────────────────────────────────────────
 
-function DetailScreen({ providerId, onBack, onBook, toast }: { providerId: string; onBack: () => void; onBook: () => void; toast: (msg: string, color?: string) => void }) {
+function DetailScreen({ providerId, onBack, onBook, toast, onNavigate }: { providerId: string; onBack: () => void; onBook: (serviceId: string) => void; toast: (msg: string, color?: string) => void; onNavigate: (s: Screen, id?: string) => void }) {
   const { service, isLoading, error, refetch } = useService(providerId);
   const [liked, setLiked] = useState(false);
 
@@ -988,7 +988,7 @@ function DetailScreen({ providerId, onBack, onBook, toast }: { providerId: strin
         </div>
 
         <div className="mt-2">
-          <button onClick={onBook} className="w-full h-12 rounded-2xl font-bold text-white flex items-center justify-center gap-2 active:opacity-80 transition-opacity" style={{ background:"linear-gradient(135deg,#7456D0 0%,#6648C2 100%)" }}>
+          <button onClick={() => onBook(service.id)} className="w-full h-12 rounded-2xl font-bold text-white flex items-center justify-center gap-2 active:opacity-80 transition-opacity" style={{ background:"linear-gradient(135deg,#7456D0 0%,#6648C2 100%)" }}>
             Book Now
           </button>
         </div>
@@ -5187,7 +5187,8 @@ useEffect(() => {    if (!isAuthenticated || isLoading) return;    if (screen ==
                 <DetailScreen
                   providerId={detailId}
                   onBack={goBack}
-                  onBook={() => navigate("booking")}
+                  onBook={(serviceId) => navigate("booking", serviceId)}
+                  onNavigate={navigate}
                   toast={pushToast}
                 />
               )}
