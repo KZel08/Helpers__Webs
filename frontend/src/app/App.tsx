@@ -1039,6 +1039,8 @@ function BookingScreen({
   const times = ["08:00 AM","10:00 AM","12:00 PM","2:00 PM","4:00 PM","6:00 PM"];
   const [showAddressPicker, setShowAddressPicker] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isPaying, setIsPaying] = useState(false);
+  const [payError, setPayError] = useState<string | null>(null);
 
   const servicePrice = typeof service?.price === "number" ? service.price : 0;
   const discount = promoApplied ? 180 : 0;
@@ -1106,7 +1108,9 @@ function BookingScreen({
         bookingDate: isoTimestamp,
         scheduledAt: isoTimestamp,
       });
-      onBookingCreated(booking);
+
+      // Booking created successfully, now start payment flow
+      await handlePay(booking.id);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to create booking. Please try again.";
       toast(message, "#EF4444");
@@ -1231,13 +1235,33 @@ function BookingScreen({
       {/* Confirm */}
       <button
         onClick={handleConfirm}
-        disabled={isSubmitting || addressesLoading}
+        disabled={isSubmitting || addressesLoading || isPaying}
         className="w-full h-14 rounded-2xl font-bold text-white text-base flex items-center justify-center gap-2 active:opacity-80 transition-opacity disabled:opacity-60"
         style={{ background:"linear-gradient(135deg,#7456D0 0%,#6648C2 100%)" }}
       >
         <CheckCircle2 size={20} />
-        {isSubmitting ? "Confirming…" : "Confirm Booking"}
+        {isSubmitting ? "Confirming…" : isPaying ? "Opening payment…" : "Confirm Booking"}
       </button>
+
+      {payError && (
+        <div className="rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-center">
+          <p className="text-destructive text-sm mb-2">{payError}</p>
+          <div className="flex gap-2 justify-center">
+            <button
+              onClick={() => { setPayError(null); handlePay(detailId); }}
+              className="px-4 py-2 rounded-xl text-sm font-bold text-primary bg-primary-soft"
+            >
+              Retry Payment
+            </button>
+            <button
+              onClick={() => setPayError(null)}
+              className="px-4 py-2 rounded-xl text-sm font-bold text-muted-foreground bg-muted"
+            >
+              Dismiss
+            </button>
+          </div>
+        </div>
+      )}
 
       {showAddressPicker && (
         <BookingAddressPickerModal
@@ -2368,15 +2392,72 @@ function ConfirmModal({ booking, onClose }: { booking: BookingData; onClose: () 
     ? `₹${booking.totalAmount.toLocaleString()}`
     : "—";
 
+  const paymentStatus = booking.payment?.status;
+  const isPaid = paymentStatus === "SUCCESS";
+  const isRefunded = paymentStatus === "REFUNDED";
+  const isFailed = paymentStatus === "FAILED";
+
+  const getStatusConfig = () => {
+    if (isPaid) {
+      return {
+        title: "Booking Confirmed & Paid!",
+        message: "Your payment has been verified. You'll get a reminder 30 min before your helper arrives.",
+        iconColor: "#5BE7C4",
+        bgColor: "bg-accent-soft",
+        statusText: "Paid",
+        statusColor: "text-[#5BE7C4]",
+        statusBg: "bg-[rgba(91,231,196,0.15)]",
+        footerText: null,
+      };
+    }
+    if (isRefunded) {
+      return {
+        title: "Booking Refunded",
+        message: "Your payment has been refunded. The booking has been cancelled.",
+        iconColor: "#F59E0B",
+        bgColor: "bg-[rgba(245,158,11,0.15)]",
+        statusText: "Refunded",
+        statusColor: "text-[#F59E0B]",
+        statusBg: "bg-[rgba(245,158,11,0.15)]",
+        footerText: null,
+      };
+    }
+    if (isFailed) {
+      return {
+        title: "Payment Failed",
+        message: "Your payment could not be processed. You can retry from your bookings.",
+        iconColor: "#EF4444",
+        bgColor: "bg-destructive/10",
+        statusText: "Failed",
+        statusColor: "text-destructive",
+        statusBg: "bg-destructive/10",
+        footerText: null,
+      };
+    }
+    // Pending or no payment yet
+    return {
+      title: "Booking Requested!",
+      message: "You'll get a reminder 30 min before your helper arrives.",
+      iconColor: "#7456D0",
+      bgColor: "bg-primary-soft",
+      statusText: "Pending",
+      statusColor: "text-[#F59E0B]",
+      statusBg: "bg-[rgba(245,158,11,0.15)]",
+      footerText: "Payment will be collected separately. This booking is not yet paid.",
+    };
+  };
+
+  const statusConfig = getStatusConfig();
+
   return (
     <div className="absolute inset-0 z-50 flex items-end justify-center bg-black/40 backdrop-blur-sm px-5 pb-8">
       <div className="bg-card border border-border rounded-3xl p-6 w-full flex flex-col items-center gap-4 shadow-xl">
-        <div className="w-16 h-16 rounded-full flex items-center justify-center bg-accent-soft">
-          <CheckCircle2 size={32} className="text-[#5BE7C4]" />
+        <div className={`w-16 h-16 rounded-full flex items-center justify-center ${statusConfig.bgColor}`}>
+          <CheckCircle2 size={32} className={statusConfig.iconColor} />
         </div>
         <div className="text-center">
-          <h2 className="text-xl font-bold text-foreground" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>Booking Requested!</h2>
-          <p className="text-muted-foreground text-sm mt-1">You&apos;ll get a reminder 30 min before your helper arrives.</p>
+          <h2 className="text-xl font-bold text-foreground" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>{statusConfig.title}</h2>
+          <p className="text-muted-foreground text-sm mt-1">{statusConfig.message}</p>
         </div>
         <div className="bg-muted rounded-2xl p-4 w-full flex flex-col gap-2 text-sm">
           {([
@@ -2392,8 +2473,14 @@ function ConfirmModal({ booking, onClose }: { booking: BookingData; onClose: () 
               <span className="text-foreground font-semibold">{v}</span>
             </div>
           ))}
+          <div className="flex justify-between pt-2 border-t border-border">
+            <span className="text-muted-foreground">Payment</span>
+            <span className={`font-semibold px-2.5 py-0.5 rounded-full text-xs ${statusConfig.statusBg} ${statusConfig.statusColor}`}>{statusConfig.statusText}</span>
+          </div>
         </div>
-        <p className="text-muted-foreground text-[11px] text-center">Payment will be collected separately. This booking is not yet paid.</p>
+        {statusConfig.footerText && (
+          <p className="text-muted-foreground text-[11px] text-center">{statusConfig.footerText}</p>
+        )}
         <button onClick={onClose} className="w-full h-12 rounded-2xl font-bold text-white active:opacity-80 transition-opacity" style={{ background:"linear-gradient(135deg,#7456D0,#6648C2)" }}>Done</button>
       </div>
     </div>
