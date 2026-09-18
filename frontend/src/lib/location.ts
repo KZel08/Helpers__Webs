@@ -2,17 +2,15 @@
 // Provider-agnostic abstraction for browser geolocation and reverse
 // geocoding / place search.
 //
-// Primary provider: Google Maps Geocoding API (client-side key).
-//   - Uses VITE_GOOGLE_MAPS_API_KEY from the existing .env (already
+// Primary provider: Geoapify Geocoding / Autocomplete API.
+//   - Uses VITE_GEOAPIFY_API_KEY from the existing .env (already
 //     provisioned in this project).
-//   - Restricted by HTTP referrer on the Google Cloud Console; never
-//     bundle server-side keys here.
-//
-// Fallback: OpenStreetMap Nominatim (no API key, rate-limited but fine
-// for the public/landing "search a city" UX).
+//   - Restricted by allowed domains/referrers on the Geoapify dashboard.
+//   - Restricted to India via filter=countrycode:in for autocomplete.
+//   - Never bundle server-side keys here.
 //
 // All UI components must call these functions instead of touching
-// window.google / fetch directly. The provider implementation can be
+// fetch directly. The provider implementation can be
 // swapped without changing the call sites.
 
 export interface Coordinates {
@@ -73,10 +71,10 @@ function safeStorageSet(value: string | null) {
   }
 }
 
-function getGoogleKey(): string | null {
+function getGeoapifyKey(): string | null {
   // import.meta.env is the Vite-native way to read env vars.
   const key = (import.meta as unknown as { env?: Record<string, string> }).env
-    ?.VITE_GOOGLE_MAPS_API_KEY;
+    ?.VITE_GEOAPIFY_API_KEY;
   return key && key.trim().length > 0 ? key.trim() : null;
 }
 
@@ -170,71 +168,101 @@ export function getCurrentCoordinates(
 // ─── 2. reverseGeocode ──────────────────────────────────────────────────────
 /**
  * Convert coordinates into a human-readable ResolvedLocation.
- * Tries Google first (if a key is available), falls back to Nominatim.
+ * Uses Geoapify Reverse Geocoding API.
  */
 export async function reverseGeocode(
   latitude: number,
   longitude: number,
 ): Promise<ResolvedLocation> {
-  const key = getGoogleKey();
-  if (key) {
-    try {
-      const url =
-        `https://maps.googleapis.com/maps/api/geocode/json?latlng=${latitude},${longitude}&key=${key}`;
-      const res = await fetch(url);
-      if (res.ok) {
-        const data = (await res.json()) as {
-          status: string;
-          results: Array<{
-            formatted_address: string;
-            address_components: Array<{ types: string[]; long_name: string; short_name: string }>;
-          }>;
-        };
-        if (data.status === "OK" && data.results.length > 0) {
-          return parseGoogleResult(data.results[0], latitude, longitude, "geolocation");
-        }
-      }
-    } catch {
-      /* fall through */
-    }
+  const key = getGeoapifyKey();
+  if (!key) {
+    // Missing API key - return controlled error state
+    return {
+      label: formatLabel({}),
+      latitude,
+      longitude,
+      source: "geolocation",
+    };
   }
 
-  // Fallback: Nominatim
   try {
     const url =
-      `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${latitude}&lon=${longitude}&zoom=14&addressdetails=1`;
+      `https://api.geoapify.com/v1/geocode/reverse?lat=${latitude}&lon=${longitude}&format=json&apiKey=${key}&countrycodes=in`;
     const res = await fetch(url, {
       headers: { Accept: "application/json" },
     });
-    if (res.ok) {
-      const data = (await res.json()) as {
-        display_name?: string;
-        address?: {
+
+    if (!res.ok) {
+      throw new Error(`Geoapify reverse geocoding failed: ${res.status}`);
+    }
+
+    const data = (await res.json()) as {
+      features: Array<{
+        properties: {
+          formatted?: string;
           city?: string;
-          town?: string;
+          city_district?: string;
+          city_district_code?: string;
+          city_code?: string;
+          suburb?: string;
+          suburb_code?: string;
           village?: string;
-          state?: string;
+          town?: string;
+          city_block?: string;
+          borough?: string;
+          city_district?: string;
+          city_district_code?: string;
+          neighbourhood?: string;
+          suburb?: string;
+          quarter?: string;
+          street?: string;
+          house_number?: string;
+          postcode?: string;
+          postcode_locality?: string;
+          city_district?: string;
           region?: string;
+          region_code?: string;
+          state?: string;
+          state_code?: string;
+          state_district?: string;
+          state_district_code?: string;
+          state_short_code?: string;
           country?: string;
+          country_code?: string;
+          country_code_alpha3?: string;
+          continent?: string;
+          continent_code?: string;
+          formatted?: string;
+          formatted?: string;
+          address_line1?: string;
+          address_line2?: string;
+          lon?: number;
+          lat?: number;
         };
-      };
-      const a = data.address ?? {};
-      const city = a.city || a.town || a.village;
+      }>;
+    };
+
+    if (data.features && data.features.length > 0) {
+      const props = data.features[0].properties;
+      const city = props.city || props.town || props.village || props.suburb || props.city_block || props.neighbourhood || props.city_block || props.borough || props.city_district;
+      const state = props.state || props.region || props.state_code || props.state_district;
+      const country = props.country || "India";
+
       return {
-        label:
-          data.display_name || formatLabel({ city, state: a.state, country: a.country }),
+        label: props.formatted || formatLabel({ city: props.city, state: props.state, country: props.country }),
         latitude,
         longitude,
-        city,
-        state: a.state || a.region,
-        country: a.country,
+        city: props.city || props.town || props.village || props.suburb || props.city_block || props.neighbourhood || props.city_block || props.borough || props.city_district,
+        state: props.state || props.region || props.state_code || props.state_district,
+        country: props.country || "India",
         source: "geolocation",
       };
     }
   } catch {
-    /* fall through */
+    /* fall through to fallback */
   }
 
+  // Fallback if Geoapify fails or returns no results
   return {
     label: formatLabel({}),
     latitude,
@@ -246,7 +274,7 @@ export async function reverseGeocode(
 // ─── 3. searchLocations ─────────────────────────────────────────────────────
 /**
  * Search for a location by free-text query (city name, address, etc.).
- * Returns up to 5 suggestions.
+ * Returns up to 5 suggestions using Geoapify Address Autocomplete API.
  */
 export async function searchLocations(
   query: string,
@@ -254,117 +282,66 @@ export async function searchLocations(
   const q = query.trim();
   if (q.length < 2) return [];
 
-  const key = getGoogleKey();
-  if (key) {
-    try {
-      const url =
-        `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(q)}&key=${key}`;
-      const res = await fetch(url);
-      if (res.ok) {
-        const data = (await res.json()) as {
-          status: string;
-          results: Array<{
-            formatted_address: string;
-            geometry: { location: { lat: number; lng: number } };
-            address_components: Array<{ types: string[]; long_name: string; short_name: string }>;
-          }>;
-        };
-        if (data.status === "OK" && data.results.length > 0) {
-          return data.results
-            .slice(0, 5)
-            .map((r) => parseGoogleResult(r, r.geometry.location.lat, r.geometry.location.lng, "search"));
-        }
-      }
-    } catch {
-      /* fall through */
-    }
+  const key = getGeoapifyKey();
+  if (!key) {
+    // Missing API key - return empty results with controlled error
+    return [];
   }
 
-  // Fallback: Nominatim
   try {
     const url =
-      `https://nominatim.openstreetmap.org/search?format=jsonv2&q=${encodeURIComponent(q)}&limit=5&addressdetails=1`;
+      `https://api.geoapify.com/v1/geocode/autocomplete?text=${encodeURIComponent(query)}&format=json&apiKey=${encodeURIComponent(key)}&limit=5&filter=countrycode:in`;
     const res = await fetch(url, {
       headers: { Accept: "application/json" },
     });
-    if (res.ok) {
-      const data = (await res.json()) as Array<{
-        display_name?: string;
-        lat: string;
-        lon: string;
-        address?: {
-          city?: string;
-          town?: string;
-          village?: string;
-          state?: string;
-          region?: string;
-          country?: string;
-        };
+
+    if (!res.ok) {
+      throw new Error(`Geoapify autocomplete failed: ${res.status}`);
+    }
+
+    const data = (await res.json()) as {
+      results: Array<{
+        formatted?: string;
+        address_line1?: string;
+        address_line2?: string;
+        city?: string;
+        town?: string;
+        village?: string;
+        suburb?: string;
+        state?: string;
+        state_code?: string;
+        country?: string;
+        country_code?: string;
+        postcode?: string;
+        lon?: number;
+        lat?: number;
+        formatted?: string;
       }>;
-      return data.map((d) => {
-        const a = d.address ?? {};
-        const city = a.city || a.town || a.village;
-        return {
-          label:
-            d.display_name || formatLabel({ city, state: a.state, country: a.country }),
-          latitude: parseFloat(d.lat),
-          longitude: parseFloat(d.lon),
-          city,
-          state: a.state || a.region,
-          country: a.country,
-          source: "search",
-        };
-      });
+    };
+
+    if (data.results && data.results.length > 0) {
+      return data.results.map((r) => ({
+        label:
+          r.formatted ||
+          r.address_line1 ||
+          formatLabel({
+            city: r.city || r.town || r.village || r.suburb,
+            state: r.state,
+            country: r.country || "India",
+          }),
+        latitude: r.lat ?? 0,
+        longitude: r.lon ?? 0,
+        city: r.city || r.town || r.village || r.suburb,
+        state: r.state,
+        country: r.country || "India",
+        source: "search",
+      }));
     }
   } catch {
-    /* fall through */
+    /* fall through to empty results */
   }
 
   return [];
-}
-
-// ─── Google result parser ──────────────────────────────────────────────────
-interface GoogleResult {
-  formatted_address: string;
-  geometry?: { location?: { lat: number; lng: number } };
-  address_components: Array<{ types: string[]; long_name: string; short_name: string }>;
-}
-
-function parseGoogleResult(
-  result: GoogleResult,
-  lat: number,
-  lng: number,
-  source: ResolvedLocation["source"],
-): ResolvedLocation {
-  let city: string | undefined;
-  let state: string | undefined;
-  let country: string | undefined;
-
-  for (const comp of result.address_components ?? []) {
-    if (comp.types.includes("locality") && !city) city = comp.long_name;
-    if (
-      (comp.types.includes("postal_town") || comp.types.includes("administrative_area_level_2")) &&
-      !city
-    ) {
-      city = comp.long_name;
-    }
-    if (comp.types.includes("administrative_area_level_1") && !state) {
-      state = comp.short_name || comp.long_name;
-    }
-    if (comp.types.includes("country") && !country) country = comp.long_name;
-  }
-
-  return {
-    label:
-      result.formatted_address ||
-      formatLabel({ city, state, country }),
-    latitude: result.geometry?.location?.lat ?? lat,
-    longitude: result.geometry?.location?.lng ?? lng,
-    city,
-    state,
-    country,
-    source,
-  };
 }
 
 // ─── 4. Persisted state helpers ─────────────────────────────────────────────
