@@ -88,7 +88,7 @@ function formatLocalIsoDate(d: Date): string {
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type Screen = "landing" | "home" | "explore" | "bookings" | "profile" | "detail" | "booking" | "addresses" | "booking-detail" | "helper-dashboard" | "helper-profile" | "helper-services" | "helper-bookings" | "admin-dashboard" | "admin-users" | "admin-bookings" | "admin-categories" | "admin-services" | "admin-service-requests" | "helper-booking-detail" | "helper-service-requests";
+type Screen = "landing" | "home" | "explore" | "bookings" | "profile" | "detail" | "booking" | "addresses" | "booking-detail" | "helper-dashboard" | "helper-profile" | "helper-services" | "helper-bookings" | "admin-dashboard" | "admin-users" | "admin-bookings" | "admin-categories" | "admin-services" | "admin-service-requests" | "helper-booking-detail" | "helper-service-requests" | "privacy" | "terms" | "about" | "help" | "faq" | "safety" | "pricing";
 
 interface Provider {
   id: string;
@@ -2261,16 +2261,18 @@ function ProfileScreen({ onNavigate, toast }: { onNavigate: (s: Screen) => void;
   const fullName = `${firstName} ${lastName}`.trim() || "User";
   const initial = fullName ? fullName.charAt(0).toUpperCase() : "?";
   const email = user?.email ?? "";
+  const phone = user?.phone ?? "";
   const isVerified = user?.isVerified ?? false;
-  const menuItems = [
-    { icon:"📍", label:"Saved Addresses",   action: () => onNavigate("addresses") },
-    { icon:"💳", label:"Payment Methods",   action: () => toast("Manage payment methods") },
-    { icon:"🔔", label:"Notifications",     action: () => toast("Notifications coming soon") },
-    { icon:"🛡️", label:"Privacy & Security",action: () => toast("Privacy settings opening…") },
-    { icon:"💬", label:"Help & Support",    action: () => toast("Connecting to support…", "#5BE7C4") },
-    { icon:"⭐", label:"Rate the App",      action: () => toast("Thanks for rating Helpers! ⭐⭐⭐⭐⭐", "#F59E0B") },
-    { icon:"🚪", label:"Sign Out",          action: handleSignOut },
-  ];
+  const avatarUrl = user?.avatarUrl ?? "";
+
+  const [isEditing, setIsEditing] = useState(false);
+  const [editForm, setEditForm] = useState({
+    firstName,
+    lastName,
+    phone,
+  });
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const handleSignOut = async () => {
     try {
@@ -2281,20 +2283,224 @@ function ProfileScreen({ onNavigate, toast }: { onNavigate: (s: Screen) => void;
     }
   };
 
+  const handleSave = async () => {
+    if (isSaving) return;
+    if (!editForm.firstName.trim() || !editForm.lastName.trim()) {
+      setSaveError("First name and last name are required");
+      return;
+    }
+    setIsSaving(true);
+    setSaveError(null);
+    try {
+      const updated = await usersApi.updateProfile({
+        firstName: editForm.firstName.trim(),
+        lastName: editForm.lastName.trim(),
+        phone: editForm.phone.trim() || undefined,
+      });
+      // Update auth context user data
+      toast("Profile updated successfully", "#5BE7C4");
+      setIsEditing(false);
+      setSaveError(null);
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : "Failed to update profile");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setEditForm({ firstName, lastName, phone });
+    setIsEditing(false);
+    setSaveError(null);
+  };
+
+  const displayName = isEditing ? `${editForm.firstName} ${editForm.lastName}`.trim() || "User" : fullName;
+  const displayInitial = displayName ? displayName.charAt(0).toUpperCase() : "?";
+  const displayEmail = email;
+  const displayPhone = isEditing ? editForm.phone : phone;
+
   return (
     <div className="flex flex-col gap-5 pb-4 animate-fade-in">
       <div className="pt-4 flex flex-col items-center gap-3">
         <div className="relative">
           <div className="w-24 h-24 rounded-full bg-gradient-to-br from-[#7456D0] to-[#4FC0E8] flex items-center justify-center text-3xl font-bold text-white">{initial}</div>
-          <button onClick={() => toast("Photo update coming soon!")} className="absolute bottom-0 right-0 w-7 h-7 rounded-full bg-primary border-2 border-background flex items-center justify-center active:scale-90 transition-transform">
-            <Plus size={13} className="text-white" />
-          </button>
+          {isEditing ? (
+            <label className="absolute bottom-0 right-0 w-7 h-7 rounded-full bg-primary border-2 border-background flex items-center justify-center active:scale-90 transition-transform cursor-pointer">
+              <input type="file" accept="image/*" className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) {
+                  // For now, just show toast - actual upload would need backend support
+                  toast("Avatar upload coming soon!");
+                }
+              }} />
+              <Plus size={13} className="text-white" />
+            </label>
+          ) : (
+            <button onClick={() => toast("Photo update coming soon!")} className="absolute bottom-0 right-0 w-7 h-7 rounded-full bg-primary border-2 border-background flex items-center justify-center active:scale-90 transition-transform">
+              <Plus size={13} className="text-white" />
+            </button>
+          )}
         </div>
-        <div className="text-center">
-          <h2 className="text-xl font-bold text-foreground" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>{fullName}</h2>
-          <p className="text-muted-foreground text-sm">{email}</p>
+<div className="text-center">
+          {isEditing ? (
+            <>
+              <h2 className="text-xl font-bold text-foreground" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>{displayName}</h2>
+              <p className="text-muted-foreground text-sm">{email}</p>
+              {phone && <p className="text-muted-foreground text-xs mt-1">{phone}</p>}
+            </>
+          ) : (
+            <>
+              <h2 className="text-xl font-bold text-foreground" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>{fullName}</h2>
+              <p className="text-muted-foreground text-sm">{email}</p>
+              {phone && <p className="text-muted-foreground text-xs mt-1">{phone}</p>}
+            </>
+          )}
         </div>
       </div>
+
+      {/* Membership */}
+      <div className="rounded-2xl p-4 flex items-center justify-between" style={{ background:"linear-gradient(135deg,rgba(116,86,208,0.12) 0%,rgba(79,192,232,0.12) 100%)", border:"1px solid rgba(116,86,208,0.25)" }}>
+        <div>
+          <p className="text-xs text-primary font-bold uppercase tracking-wider">Helpers Plus</p>
+          <p className="text-foreground font-bold mt-0.5">Upgrade for free priority booking</p>
+          <p className="text-muted-foreground text-xs mt-0.5">Starts at ₹99/month</p>
+        </div>
+        <button onClick={() => toast("Helpers Plus trial activated! Enjoy priority booking.", "#7456D0")} className="text-white font-bold text-sm px-4 py-2 rounded-xl active:scale-90 transition-transform" style={{ background:"linear-gradient(135deg,#7456D0,#6648C2)" }}>
+          Try Free
+        </button>
+      </div>
+
+      <div className="bg-card border border-border rounded-2xl overflow-hidden">
+        {menuItems.map((item, i) => (
+          <button key={item.label} onClick={item.action} className={`w-full flex items-center gap-4 px-4 py-4 hover:bg-muted active:bg-muted transition-colors text-left ${i < menuItems.length-1 ? "border-b border-border" : ""} ${item.label==="Sign Out"?"text-destructive":"text-foreground"}`}>
+            <span className="text-lg">{item.icon}</span>
+            <span className="text-sm font-medium flex-1">{item.label}</span>
+            {item.label !== "Sign Out" && <ChevronRight size={16} className="text-muted-foreground" />}
+          </button>
+        ))}
+      </div>
+
+      {/* Profile Form */}
+      {isEditing && (
+        <div className="bg-card border border-border rounded-2xl p-4 space-y-4">
+          <h3 className="font-bold text-foreground" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>Edit Profile</h3>
+          {saveError && (
+            <div className="rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+              {saveError}
+            </div>
+          )}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground mb-1.5">First Name <span className="text-destructive">*</span></label>
+              <input
+                value={editForm.firstName}
+                onChange={(e) => setEditForm({ ...editForm, firstName: e.target.value })}
+                className="w-full rounded-xl border border-[#E8E6EE] bg-[#20242D] px-3 py-2.5 text-sm text-white outline-none placeholder:text-[#A5A9B5] focus:border-[#7456D0]"
+                placeholder="First Name"
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground mb-1.5">Last Name <span className="text-destructive">*</span></label>
+              <input
+                value={editForm.lastName}
+                onChange={(e) => setEditForm({ ...editForm, lastName: e.target.value })}
+                className="w-full rounded-xl border border-[#E8E6EE] bg-[#20242D] px-3 py-2.5 text-sm text-white outline-none placeholder:text-[#A5A9B5] focus:border-[#7456D0]"
+                placeholder="Last Name"
+                required
+              />
+            </div>
+            <div className="sm:col-span-2">
+              <label className="block text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground mb-1.5">Phone Number</label>
+              <input
+                type="tel"
+                value={editForm.phone}
+                onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
+                className="w-full rounded-xl border border-[#E8E6EE] bg-[#20242D] px-3 py-2.5 text-sm text-white outline-none placeholder:text-[#A5A9B5] focus:border-[#7456D0]"
+                placeholder="+91 98765 43210"
+              />
+            </div>
+            <div className="sm:col-span-2">
+              <label className="block text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground mb-1.5">Email</label>
+              <input
+                type="email"
+                value={email}
+                disabled
+                className="w-full rounded-xl border border-[#E8E6EE] bg-[#171A21] px-3 py-2.5 text-sm text-white outline-none placeholder:text-[#A5A9B5] cursor-not-allowed"
+                placeholder="Email cannot be changed"
+              />
+            </div>
+          </div>
+          {saveError && (
+            <div className="rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-2 text-sm text-destructive">
+              {saveError}
+            </div>
+          )}
+          <div className="flex gap-3 pt-2">
+            <button
+              onClick={handleCancelEdit}
+              className="flex-1 h-12 rounded-2xl bg-[#20242D] text-white font-bold"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleSave}
+              disabled={isSaving}
+              className="flex-1 h-12 rounded-2xl font-bold text-white disabled:opacity-50"
+              style={{ background: "linear-gradient(135deg,#7456D0 0%,#6648C2 100%)" }}
+            >
+              {isSaving ? "Saving…" : "Save Changes"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {!isEditing && (
+        <>
+          <div className="bg-card border border-border rounded-2xl p-4 space-y-3">
+            <h3 className="font-bold text-foreground" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>Personal Information</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">First Name</p>
+                <p className="text-foreground font-medium">{firstName}</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Last Name</p>
+                <p className="text-foreground font-medium">{lastName}</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Email</p>
+                <p className="text-foreground font-medium">{email}</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Phone</p>
+                <p className="text-foreground font-medium">{phone || "Not set"}</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Verified</p>
+                <p className="text-foreground font-medium">{isVerified ? "Yes" : "No"}</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex gap-3 pt-2">
+            <button
+              onClick={() => { setEditForm({ firstName, lastName, phone }); setIsEditing(true); }}
+              className="flex-1 h-12 rounded-2xl font-bold text-white"
+              style={{ background: "linear-gradient(135deg,#7456D0 0%,#6648C2 100%)" }}
+            >
+              Edit Profile
+            </button>
+            <button
+              onClick={handleSignOut}
+              className="flex-1 h-12 rounded-2xl font-bold text-destructive border border-destructive/30 bg-destructive/10 flex items-center justify-center gap-2"
+            >
+              <LogOut size={16} />
+              Sign Out
+            </button>
+          </div>
+        </>
+      )}
 
       {/* Membership */}
       <div className="rounded-2xl p-4 flex items-center justify-between" style={{ background:"linear-gradient(135deg,rgba(116,86,208,0.12) 0%,rgba(79,192,232,0.12) 100%)", border:"1px solid rgba(116,86,208,0.25)" }}>
@@ -5058,20 +5264,20 @@ function LandingPage({ onNavigate, toast, onAuthNavigate, onOpenLocationPicker }
         ]}
         forCustomers={[
           { label: "Browse All Services", onClick: () => handleSearch() },
-          { label: "How It Works", disabled: true },
+          { label: "How It Works", onClick: () => navigate("about") },
           { label: "Address Book", onClick: handleSignIn },
-          { label: "Help & FAQ", disabled: true },
+          { label: "Help & FAQ", onClick: () => navigate("help") },
         ]}
         forProfessionals={[
           { label: "Apply as a Helper", onClick: handleRegister },
           { label: "Helper Dashboard", disabled: true },
           { label: "Admin Portal", disabled: true },
-          { label: "Pricing & Fees", disabled: true },
+          { label: "Pricing & Fees", onClick: () => navigate("pricing") },
         ]}
         legalLinks={[
-          { label: "Privacy Policy", disabled: true },
-          { label: "Terms of Service", disabled: true },
-          { label: "Safety Guidelines", disabled: true },
+          { label: "Privacy Policy", onClick: () => navigate("privacy") },
+          { label: "Terms of Service", onClick: () => navigate("terms") },
+          { label: "Safety Guidelines", onClick: () => navigate("safety") },
         ]}
       />
     </div>
@@ -5108,10 +5314,16 @@ function screenFromPath(pathname: string, userRole?: string): Screen {
     if (userRole === "helper") return "helper-dashboard";
     return "home";
   }
+  // Public legal pages
+  const publicScreens: Screen[] = ["privacy", "terms", "about", "help", "faq", "safety", "pricing"];
+  if (publicScreens.includes(clean as Screen)) return clean as Screen;
   return ADMIN_ROUTE_TO_SCREEN[clean] ?? "landing";
 }
 
 function pathForScreen(screen: Screen): string {
+  if (["privacy", "terms", "about", "help", "faq", "safety", "pricing"].includes(screen)) {
+    return `/${screen}`;
+  }
   return SCREEN_TO_ADMIN_PATH[screen] ?? "/";
 }
 
@@ -5149,7 +5361,7 @@ export default function App() {
 
   const tabScreens: Screen[] = ["home","explore","bookings","profile","helper-dashboard","helper-service-requests","helper-bookings","admin-dashboard"];
   const activeTab = tabScreens.includes(screen) ? screen : prevScreen;
-  const showBottomNav = !["detail","booking","addresses","booking-detail","register","verify-email","helper-booking-detail","admin-users","admin-bookings","admin-categories","admin-services","admin-service-requests","helper-service-requests"].includes(screen);
+  const showBottomNav = !["detail","booking","addresses","booking-detail","register","verify-email","helper-booking-detail","admin-users","admin-bookings","admin-categories","admin-services","admin-service-requests","helper-service-requests","privacy","terms","about","help","faq","safety","pricing"].includes(screen);
 
   const navItems = isHelper ? [
     { id:"helper-dashboard" as Screen, icon:Home,          label:"Dashboard" },
@@ -5305,6 +5517,14 @@ useEffect(() => {    if (!isAuthenticated || isLoading) return;    if (screen ==
                 />
               )}
               {screen === "profile"  && (isHelper ? <HelperProfileScreen onNavigate={navigate} toast={pushToast} /> : isAdmin ? <AdminProfileScreen onNavigate={navigate} toast={pushToast} /> : <ProfileScreen onNavigate={navigate} toast={pushToast} />)}
+              {screen === "addresses" && <AddressScreen onBack={goBack} toast={pushToast} />}
+              {screen === "privacy" && <PrivacyScreen onBack={goBack} />}
+              {screen === "terms" && <TermsScreen onBack={goBack} />}
+              {screen === "about" && <AboutScreen onBack={goBack} />}
+              {screen === "help" && <HelpScreen onBack={goBack} />}
+              {screen === "faq" && <FAQScreen onBack={goBack} />}
+              {screen === "safety" && <SafetyScreen onBack={goBack} />}
+              {screen === "pricing" && <PricingScreen onBack={goBack} />}
               {screen === "addresses" && <AddressScreen onBack={goBack} toast={pushToast} />}
               {screen === "helper-dashboard" && <HelperDashboardScreen onNavigate={navigate} toast={pushToast} />}
               {screen === "helper-service-requests" && <HelperServiceRequestsScreen onBack={goBack} toast={pushToast} />}
