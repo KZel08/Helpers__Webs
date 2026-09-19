@@ -2,12 +2,14 @@
 // Modal opened from the navbar / hero location buttons. Lets the user either:
 //   1. Detect current location via the browser Geolocation API.
 //   2. Search for a city/address and pick a suggestion.
+//   3. Click on the map to select a location.
 // Selecting an option calls onSelect which updates the global LocationContext.
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { MapPin, Search, X, Loader2, Navigation, AlertCircle } from "lucide-react";
-import { searchLocations, type ResolvedLocation } from "../../../lib/location";
+import { searchLocations, reverseGeocode, type ResolvedLocation } from "../../../lib/location";
 import { useLocationContext } from "../../../contexts/LocationContext";
+import { MapComponent } from "./MapComponent";
 
 export interface LocationPickerProps {
   isOpen: boolean;
@@ -21,8 +23,12 @@ export function LocationPicker({ isOpen, onClose, onSelect }: LocationPickerProp
   const [results, setResults] = useState<ResolvedLocation[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
+  const [mapError, setMapError] = useState<string | null>(null);
+  const [selectedCoord, setSelectedCoord] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [isReverseGeocoding, setIsReverseGeocoding] = useState(false);
   const debounceRef = useRef<number | null>(null);
   const lastQueryRef = useRef("");
+  const isMapClickRef = useRef(false);
 
   // Debounced search
   useEffect(() => {
@@ -69,6 +75,7 @@ export function LocationPicker({ isOpen, onClose, onSelect }: LocationPickerProp
       setQuery("");
       setResults([]);
       setSearchError(null);
+      setMapError(null);
     }
   }, [isOpen]);
 
@@ -82,13 +89,52 @@ export function LocationPicker({ isOpen, onClose, onSelect }: LocationPickerProp
     return () => window.removeEventListener("keydown", onKey);
   }, [isOpen, onClose]);
 
+  // Sync selected coordinate with context location when not from map click
+  useEffect(() => {
+    if (!isMapClickRef.current && ctx.location) {
+      setSelectedCoord({ latitude: ctx.location.latitude, longitude: ctx.location.longitude });
+    }
+    isMapClickRef.current = false;
+  }, [ctx.location]);
+
   if (!isOpen) return null;
 
-  const handleSelect = (loc: ResolvedLocation) => {
+  const handleSelect = useCallback((loc: ResolvedLocation) => {
     ctx.setLocation(loc);
     onSelect?.(loc);
     onClose();
-  };
+  }, [ctx, onSelect, onClose]);
+
+  const handleMapClick = useCallback(async (coordinate: { latitude: number; longitude: number }) => {
+    isMapClickRef.current = true;
+    setIsReverseGeocoding(true);
+    try {
+      const loc = await reverseGeocode(coordinate.latitude, coordinate.longitude);
+      ctx.setLocation(loc);
+      setSelectedCoord({ latitude: loc.latitude, longitude: loc.longitude });
+      onSelect?.(loc);
+      onClose();
+    } catch {
+      // Keep the coordinate selected even if reverse geocoding fails
+      setSelectedCoord({ latitude: coordinate.latitude, longitude: coordinate.longitude });
+    } finally {
+      setIsReverseGeocoding(false);
+      isMapClickRef.current = false;
+    }
+  }, [ctx, reverseGeocode]);
+
+  const handleSearchSelect = useCallback((loc: ResolvedLocation) => {
+    setSelectedCoord({ latitude: loc.latitude, longitude: loc.longitude });
+    handleSelect(loc);
+  }, [handleSelect]);
+
+  const handleCurrentLocation = useCallback(() => {
+    ctx.detectCurrent();
+  }, [ctx]);
+
+  const handleMapError = useCallback((err: string) => {
+    setMapError(err);
+  }, []);
 
   return (
     <div
@@ -134,7 +180,7 @@ export function LocationPicker({ isOpen, onClose, onSelect }: LocationPickerProp
           {/* Detect current location button */}
           <button
             type="button"
-            onClick={() => ctx.detectCurrent()}
+            onClick={handleCurrentLocation}
             disabled={ctx.status === "detecting"}
             className="mt-3 w-full h-11 rounded-xl bg-primary-soft text-primary text-sm font-semibold flex items-center justify-center gap-2 active:scale-[0.99] transition-transform disabled:opacity-60"
           >
@@ -159,6 +205,31 @@ export function LocationPicker({ isOpen, onClose, onSelect }: LocationPickerProp
           )}
         </div>
 
+        {/* Map */}
+        <div className="border-t border-border">
+          <MapComponent
+            coordinate={selectedCoord}
+            onCoordinateSelect={handleMapClick}
+            className="h-[300px]"
+            mapError={setMapError}
+          />
+          {isReverseGeocoding && (
+            <div className="absolute inset-0 bg-black/50 flex items-center justify-center z-10 rounded-b-2xl">
+              <div className="bg-card rounded-xl p-4 flex items-center gap-3 shadow-xl">
+                <Loader2 size={18} className="text-primary animate-spin" />
+                <span className="text-sm font-medium text-foreground">Resolving address…</span>
+              </div>
+            </div>
+          )}
+          {mapError && (
+            <div className="absolute bottom-4 left-4 right-4 z-10">
+              <div className="rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-center text-sm text-destructive">
+                {mapError}
+              </div>
+            </div>
+          )}
+        </div>
+
         {/* Results */}
         <div className="flex-1 overflow-y-auto p-3">
           {searchError && query.trim().length >= 2 && !isSearching ? (
@@ -171,7 +242,7 @@ export function LocationPicker({ isOpen, onClose, onSelect }: LocationPickerProp
                 <li key={`${r.label}-${i}`}>
                   <button
                     type="button"
-                    onClick={() => handleSelect(r)}
+                    onClick={() => handleSearchSelect(r)}
                     className="w-full text-left flex items-start gap-3 p-3 rounded-xl hover:bg-muted active:bg-muted transition-colors"
                   >
                     <div className="w-9 h-9 rounded-lg bg-primary-soft flex items-center justify-center shrink-0">
